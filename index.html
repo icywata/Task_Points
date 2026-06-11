@@ -6,7 +6,6 @@
 <title>Good Girl - Simple Points Tracker</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
     --bg-page:       #1a1118;
     --bg-surface:    #221620;
@@ -28,7 +27,6 @@
     --radius-lg:     14px;
     --radius-xl:     18px;
   }
-
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--bg-page);
@@ -37,187 +35,64 @@
     padding: 2rem 1rem 4rem;
   }
 
-  /* ── Lock screen ── */
+  /* ── Lock ── */
   #lockScreen {
-    position: fixed;
-    inset: 0;
-    background: var(--bg-page);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 1rem;
+    position: fixed; inset: 0; background: var(--bg-page);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 1rem;
   }
   #lockScreen.hidden { display: none; }
-
   .lock-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: 2.5rem 2rem;
-    width: 100%;
-    max-width: 360px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-xl); padding: 2.5rem 2rem;
+    width: 100%; max-width: 360px;
+    display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
   }
-  .lock-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--pink-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  .lock-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--pink-bg); display: flex; align-items: center; justify-content: center; }
   .lock-icon svg { color: var(--pink-mid); }
-  .lock-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    text-align: center;
-    line-height: 1.3;
-  }
-  .lock-sub {
-    font-size: 13px;
-    color: var(--text-muted);
-    text-align: center;
-    margin-top: -1rem;
-  }
+  .lock-title { font-size: 18px; font-weight: 600; color: var(--text-primary); text-align: center; }
+  .lock-sub { font-size: 13px; color: var(--text-muted); text-align: center; margin-top: -1rem; }
   .lock-field { width: 100%; display: flex; flex-direction: column; gap: 6px; }
-  .lock-field label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .6px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
+  .lock-field label { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); }
   .lock-field input {
-    width: 100%;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: 16px;
-    padding: 11px 14px;
-    outline: none;
-    transition: border-color .15s;
-    letter-spacing: .1em;
+    width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-md); color: var(--text-primary);
+    font-family: inherit; font-size: 16px; padding: 11px 14px;
+    outline: none; transition: border-color .15s; letter-spacing: .1em;
   }
   .lock-field input:focus { border-color: var(--pink-mid); }
   .lock-field input::placeholder { color: var(--text-muted); letter-spacing: 0; }
-  .lock-error {
-    font-size: 12px;
-    color: #e06060;
-    text-align: center;
-    min-height: 16px;
-  }
+  .lock-error { font-size: 12px; color: #e06060; text-align: center; min-height: 16px; }
   .lock-btn {
-    width: 100%;
-    height: 44px;
-    background: var(--pink-mid);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background .15s, transform .1s;
+    width: 100%; height: 44px; background: var(--pink-mid); color: #fff;
+    border: none; border-radius: var(--radius-md); font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background .15s, transform .1s;
   }
   .lock-btn:hover { background: var(--pink-deep); }
   .lock-btn:active { transform: scale(.98); }
 
-  /* ── App (hidden until unlocked) ── */
+  /* ── App ── */
   #appScreen { display: none; }
   #appScreen.visible { display: block; }
-
   .app { max-width: 640px; margin: 0 auto; }
 
   .app-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.75rem; }
   .app-header svg { color: var(--pink-mid); flex-shrink: 0; }
-  .app-header h1 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    letter-spacing: -.2px;
-    flex: 1;
-    line-height: 1.2;
-  }
-  .sync-indicator {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-    letter-spacing: .3px;
-    white-space: nowrap;
-  }
+  .app-header h1 { font-size: 18px; font-weight: 600; color: var(--text-primary); letter-spacing: -.2px; flex: 1; line-height: 1.2; }
+  .sync-indicator { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px; white-space: nowrap; }
   .sync-indicator.syncing { background: #2a2820; color: #c8a84a; }
   .sync-indicator.saved   { background: #1e2d1e; color: #6abf6a; }
   .sync-indicator.error   { background: #2d1a1a; color: #e06060; }
   .sync-indicator.loading { background: var(--bg-card); color: var(--text-muted); }
 
-  .week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .week-nav-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: -.1px; }
-  .week-nav-btns { display: flex; align-items: center; gap: 4px; }
-  .nav-btn {
-    width: 32px; height: 32px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    transition: border-color .15s, color .15s, background .15s;
-  }
-  .nav-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
-  .nav-btn svg { width: 16px; height: 16px; }
-  .nav-today-btn {
-    height: 32px; padding: 0 12px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 12px; font-weight: 600;
-    cursor: pointer;
-    transition: border-color .15s, color .15s, background .15s;
-  }
-  .nav-today-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
-
-  .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 1.5rem; }
-  .day-pill {
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 9px 4px 7px;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border-light);
-    background: var(--bg-card);
-    cursor: pointer;
-    transition: border-color .15s, background .15s;
-    user-select: none;
-  }
-  .day-pill:hover { border-color: var(--pink-deep); }
-  .day-pill.active { background: var(--pink-bg); border-color: var(--pink-mid); }
-  .day-label { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); }
-  .day-pill.active .day-label { color: var(--pink-light); }
-  .day-num { font-size: 16px; font-weight: 500; color: var(--text-primary); }
-  .day-pill.active .day-num { color: #fff; }
-  .day-pts { font-size: 10px; font-weight: 600; color: var(--pink-mid); min-height: 13px; }
-
+  /* ── Banners ── */
   .alltime-banner {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: 1rem 1.5rem;
-    margin-bottom: 1rem;
-    display: flex; align-items: center;
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-xl); padding: 1rem 1.5rem;
+    margin-bottom: 1rem; display: flex; align-items: center;
   }
   .alltime-left { display: flex; align-items: center; gap: 12px; }
-  .alltime-icon {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: var(--pink-bg);
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
+  .alltime-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--pink-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .alltime-icon svg { color: var(--pink-mid); }
   .alltime-label { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
   .alltime-val { font-size: 28px; font-weight: 700; color: var(--text-primary); line-height: 1; letter-spacing: -.5px; }
@@ -234,9 +109,58 @@
   .total-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--pink-bg-light); display: flex; align-items: center; justify-content: center; }
   .total-icon svg { color: var(--pink-mid); }
 
-  .section-head { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+  /* ── Week nav ── */
+  .week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .week-nav-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .week-nav-btns { display: flex; align-items: center; gap: 4px; }
+  .nav-btn {
+    width: 32px; height: 32px; border-radius: var(--radius-md);
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .nav-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
+  .nav-btn svg { width: 16px; height: 16px; }
+  .nav-today-btn {
+    height: 32px; padding: 0 12px; border-radius: var(--radius-md);
+    border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .nav-today-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
 
-  .tasks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.75rem; }
+  /* ── Week strip ── */
+  .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 1.5rem; }
+  .day-pill {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 7px; border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light); background: var(--bg-card);
+    cursor: pointer; transition: border-color .15s, background .15s; user-select: none;
+  }
+  .day-pill:hover { border-color: var(--pink-deep); }
+  .day-pill.active { background: var(--pink-bg); border-color: var(--pink-mid); }
+  .day-label { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); }
+  .day-pill.active .day-label { color: var(--pink-light); }
+  .day-num { font-size: 16px; font-weight: 500; color: var(--text-primary); }
+  .day-pill.active .day-num { color: #fff; }
+  .day-pts { font-size: 10px; font-weight: 600; color: var(--pink-mid); min-height: 13px; }
+
+  /* ── Section heads ── */
+  .section-head {
+    font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 20px;
+  }
+  .section-badge.monthly { background: #2a1f3d; color: #a98fe0; }
+  .section-badge.daily   { background: var(--pink-bg); color: var(--pink-light); }
+  .section-badge.repeat  { background: #1d2a2a; color: #6abfbf; }
+
+  /* ── Task rows ── */
+  .tasks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.5rem; }
   .task-row {
     display: flex; align-items: flex-start; gap: 12px;
     background: var(--bg-card); border: 1px solid var(--border-light);
@@ -245,6 +169,8 @@
   }
   .task-row:hover { border-color: var(--border); }
   .task-row.done { background: var(--bg-done); border-color: var(--border-light); }
+  .task-row.monthly-row { border-left: 2px solid #7c5cbf; }
+  .task-row.repeat-row  { border-left: 2px solid #3a9e9e; }
   .task-check {
     width: 26px; height: 26px; border-radius: 50%;
     border: 1.5px solid var(--pink-deep); background: transparent;
@@ -260,18 +186,40 @@
   .task-row.done .task-name { color: var(--text-done); text-decoration: line-through; }
   .task-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
   .task-row.done .task-desc { opacity: .6; }
-  .task-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 1px; }
+  .task-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-top: 1px; }
   .pts-badge { font-size: 12px; font-weight: 600; color: var(--pink-light); background: var(--pink-bg-light); padding: 3px 9px; border-radius: 20px; }
   .task-row.done .pts-badge { opacity: .4; }
-  .task-delete { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 3px; border-radius: 4px; display: flex; align-items: center; transition: color .15s; line-height: 1; }
+  .task-delete {
+    background: none; border: none; cursor: pointer; color: var(--text-muted);
+    padding: 3px; border-radius: 4px; display: flex; align-items: center;
+    transition: color .15s; line-height: 1;
+  }
   .task-delete:hover { color: #f09595; }
   .task-delete svg { width: 15px; height: 15px; }
+  .task-delete-future {
+    background: none; border: 1px solid var(--border); cursor: pointer;
+    color: var(--text-muted); padding: 3px 7px; border-radius: var(--radius-md);
+    font-size: 10px; font-weight: 600; letter-spacing: .3px;
+    transition: color .15s, border-color .15s; white-space: nowrap;
+  }
+  .task-delete-future:hover { color: #f09595; border-color: #f09595; }
 
-  .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 13px; border: 1px dashed var(--border-light); border-radius: var(--radius-lg); }
-  .empty-state svg { display: block; margin: 0 auto 10px; color: var(--text-muted); opacity: .5; }
+  .empty-state {
+    text-align: center; padding: 1.5rem 1rem; color: var(--text-muted); font-size: 13px;
+    border: 1px dashed var(--border-light); border-radius: var(--radius-lg);
+  }
+  .empty-state svg { display: block; margin: 0 auto 8px; color: var(--text-muted); opacity: .4; }
 
-  .add-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 1.25rem; display: flex; flex-direction: column; gap: 10px; }
-  .add-form label { font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 5px; }
+  /* ── Add form ── */
+  .add-form {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-xl); padding: 1.25rem;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .add-form label {
+    font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--text-muted); display: block; margin-bottom: 5px;
+  }
   .add-form input[type="text"], .add-form input[type="number"], .add-form textarea {
     width: 100%; background: var(--bg-input); border: 1px solid var(--border);
     border-radius: var(--radius-md); color: var(--text-primary);
@@ -281,6 +229,20 @@
   .add-form input:focus, .add-form textarea:focus { border-color: var(--pink-mid); }
   .add-form input::placeholder, .add-form textarea::placeholder { color: var(--text-muted); }
   .form-row { display: grid; grid-template-columns: 1fr 100px; gap: 10px; }
+
+  /* type toggle */
+  .type-toggle { display: flex; gap: 6px; }
+  .type-btn {
+    flex: 1; height: 36px; border-radius: var(--radius-md);
+    border: 1px solid var(--border); background: var(--bg-input);
+    color: var(--text-muted); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .type-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); }
+  .type-btn.active-daily   { background: var(--pink-bg); border-color: var(--pink-mid); color: var(--pink-light); }
+  .type-btn.active-monthly { background: #2a1f3d; border-color: #7c5cbf; color: #c4aaee; }
+  .type-btn.active-repeat  { background: #1d2a2a; border-color: #3a9e9e; color: #7dd4d4; }
+
   .add-btn {
     width: 100%; height: 40px; background: var(--pink-mid); color: #fff;
     border: none; border-radius: var(--radius-md); font-size: 14px; font-weight: 600;
@@ -290,18 +252,18 @@
   .add-btn:hover { background: var(--pink-deep); }
   .add-btn:active { transform: scale(.98); }
   .add-btn svg { width: 16px; height: 16px; }
+
   .divider { border: none; border-top: 1px solid var(--border-light); margin: 1.5rem 0; }
 </style>
 </head>
 <body>
 
-<!-- ── Lock screen ── -->
+<!-- Lock screen -->
 <div id="lockScreen">
   <div class="lock-card">
     <div class="lock-icon">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
     </div>
     <div>
@@ -317,23 +279,24 @@
   </div>
 </div>
 
-<!-- ── App ── -->
+<!-- App -->
 <div id="appScreen">
 <div class="app">
 
   <div class="app-header">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
     </svg>
     <h1>Good Girl — Simple Points Tracker</h1>
     <span class="sync-indicator loading" id="syncStatus">Loading…</span>
   </div>
 
+  <!-- All-time total -->
   <div class="alltime-banner">
     <div class="alltime-left">
       <div class="alltime-icon">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
       </div>
       <div>
@@ -346,20 +309,22 @@
     </div>
   </div>
 
+  <!-- Week nav -->
   <div class="week-nav">
     <span class="week-nav-label" id="weekLabel"></span>
     <div class="week-nav-btns">
-      <button class="nav-btn" onclick="shiftDay(-1)" title="Previous day">
+      <button class="nav-btn" onclick="shiftDay(-1)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <button class="nav-today-btn" onclick="goToday()">Today</button>
-      <button class="nav-btn" onclick="shiftDay(1)" title="Next day">
+      <button class="nav-btn" onclick="shiftDay(1)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
     </div>
   </div>
   <div class="week-strip" id="weekStrip"></div>
 
+  <!-- Daily total -->
   <div class="total-card">
     <div>
       <div class="total-label" id="totalLabel">Points earned today</div>
@@ -370,18 +335,41 @@
     </div>
     <div class="total-icon">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
       </svg>
     </div>
   </div>
 
-  <div class="section-head">Tasks</div>
-  <div class="tasks-list" id="tasksList"></div>
+  <!-- Monthly tasks -->
+  <div class="section-head">
+    Monthly tasks
+    <span class="section-badge monthly">This month</span>
+  </div>
+  <div class="tasks-list" id="monthlyList"></div>
+
+  <!-- Daily tasks -->
+  <div class="section-head" style="margin-top:.25rem">
+    Daily tasks
+    <span class="section-badge daily">Today</span>
+  </div>
+  <div class="tasks-list" id="dailyList"></div>
 
   <hr class="divider" />
 
+  <!-- Add form -->
   <div class="section-head">Add a task</div>
   <div class="add-form">
+
+    <!-- Type selector -->
+    <div>
+      <label>Task type</label>
+      <div class="type-toggle">
+        <button class="type-btn active-daily" id="btn-daily"   onclick="setType('daily')">Daily</button>
+        <button class="type-btn"              id="btn-repeat"  onclick="setType('repeat')">↻ Repeats daily</button>
+        <button class="type-btn"              id="btn-monthly" onclick="setType('monthly')">Monthly</button>
+      </div>
+    </div>
+
     <div>
       <label for="taskName">Task name</label>
       <input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80" />
@@ -398,7 +386,7 @@
       <div style="display:flex;flex-direction:column;justify-content:flex-end">
         <button class="add-btn" onclick="addTask()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add task
+          Add
         </button>
       </div>
     </div>
@@ -416,8 +404,7 @@ async function submitPassword() {
   if (!pw) return;
   try {
     const res = await fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pw })
     });
     if (res.ok) {
@@ -431,9 +418,7 @@ async function submitPassword() {
       document.getElementById('passwordInput').focus();
       setTimeout(() => { err.textContent = ''; }, 3000);
     }
-  } catch {
-    document.getElementById('lockError').textContent = 'Could not reach server';
-  }
+  } catch { document.getElementById('lockError').textContent = 'Could not reach server'; }
 }
 
 function unlock() {
@@ -442,33 +427,102 @@ function unlock() {
   loadFromServer();
 }
 
-// If we have a stored password, try it straight away
 if (sessionPassword) {
   fetch('/api/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: sessionPassword })
   }).then(r => { if (r.ok) unlock(); else sessionStorage.removeItem('app_pw'); });
 }
 
-document.getElementById('passwordInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') submitPassword();
-});
+document.getElementById('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitPassword(); });
 
 // ── State ──────────────────────────────────────────────────────
+// state structure:
+// {
+//   days: { "2025-06-01": { tasks: [{id,name,desc,pts,done}] } },
+//   monthly: { "2025-06": [{id,name,desc,pts}] },          // templates (no done state)
+//   monthlyDone: { "2025-06-01": { "task-id": true } },    // per-day completion for monthly
+//   repeating: [ {id,name,desc,pts,startDate} ],           // repeating templates
+//   repeatingDone: { "2025-06-01": { "task-id": true } },  // per-day completion for repeating
+//   repeatingDeleted: { "task-id": "2025-06-02" }          // deleted from this date onward
+// }
 let state = {};
 let selectedDate = keyFromDate(new Date());
 let saveTimer = null;
+let addType = 'daily'; // 'daily' | 'monthly' | 'repeat'
 
 // ── Date helpers ───────────────────────────────────────────────
 function keyFromDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 function dateFromKey(key) {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  const [y,m,d] = key.split('-').map(Number);
+  return new Date(y, m-1, d);
 }
+function monthKey(dateKey) { return dateKey.slice(0, 7); } // "2025-06"
 function getTodayKey() { return keyFromDate(new Date()); }
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+// ── State accessors ────────────────────────────────────────────
+function ensureState() {
+  if (!state.days)            state.days = {};
+  if (!state.monthly)         state.monthly = {};
+  if (!state.monthlyDone)     state.monthlyDone = {};
+  if (!state.repeating)       state.repeating = [];
+  if (!state.repeatingDone)   state.repeatingDone = {};
+  if (!state.repeatingDeleted)state.repeatingDeleted = {};
+}
+
+function getDayTasks(key) {
+  ensureState();
+  if (!state.days[key]) state.days[key] = { tasks: [] };
+  return state.days[key].tasks;
+}
+
+function getMonthlyTasks(key) {
+  ensureState();
+  const mk = monthKey(key);
+  return state.monthly[mk] || [];
+}
+
+function getRepeatingTasksForDay(key) {
+  ensureState();
+  return state.repeating.filter(t => {
+    if (t.startDate > key) return false;
+    const deletedFrom = state.repeatingDeleted[t.id];
+    if (deletedFrom && key >= deletedFrom) return false;
+    return true;
+  });
+}
+
+// ── Points ─────────────────────────────────────────────────────
+function getDayPoints(key) {
+  ensureState();
+  let pts = 0;
+  // daily tasks
+  const day = state.days[key];
+  if (day) pts += day.tasks.reduce((s, t) => s + (t.done ? t.pts : 0), 0);
+  // monthly
+  const mk = monthKey(key);
+  const mdone = state.monthlyDone[key] || {};
+  (state.monthly[mk] || []).forEach(t => { if (mdone[t.id]) pts += t.pts; });
+  // repeating
+  const rdone = state.repeatingDone[key] || {};
+  getRepeatingTasksForDay(key).forEach(t => { if (rdone[t.id]) pts += t.pts; });
+  return pts;
+}
+
+function getAllTimePoints() {
+  ensureState();
+  const allKeys = new Set([
+    ...Object.keys(state.days),
+    ...Object.keys(state.monthlyDone),
+    ...Object.keys(state.repeatingDone)
+  ]);
+  let total = 0;
+  allKeys.forEach(k => { total += getDayPoints(k); });
+  return total;
+}
 
 // ── API ────────────────────────────────────────────────────────
 function authHeaders() {
@@ -482,27 +536,21 @@ async function loadFromServer() {
     if (res.status === 401) { sessionStorage.removeItem('app_pw'); location.reload(); return; }
     if (!res.ok) throw new Error();
     state = await res.json();
+    ensureState();
     setSync('saved', 'Up to date');
     render();
-  } catch {
-    setSync('error', 'Could not load');
-    render();
-  }
+  } catch { setSync('error', 'Could not load'); render(); }
 }
 
 async function saveToServer() {
   setSync('syncing', 'Saving…');
   try {
     const res = await fetch('/api/data', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(state)
+      method: 'POST', headers: authHeaders(), body: JSON.stringify(state)
     });
     if (!res.ok) throw new Error();
     setSync('saved', 'Saved');
-  } catch {
-    setSync('error', 'Save failed');
-  }
+  } catch { setSync('error', 'Save failed'); }
 }
 
 function scheduleSave() {
@@ -516,20 +564,6 @@ function setSync(cls, text) {
   el.textContent = text;
 }
 
-// ── Data helpers ───────────────────────────────────────────────
-function getDay(key) {
-  if (!state[key]) state[key] = { tasks: [] };
-  return state[key];
-}
-function getDayPoints(key) {
-  if (!state[key]) return 0;
-  return state[key].tasks.reduce((s, t) => s + (t.done ? t.pts : 0), 0);
-}
-function getAllTimePoints() {
-  return Object.values(state).reduce((total, day) =>
-    total + (day.tasks || []).reduce((s, t) => s + (t.done ? t.pts : 0), 0), 0);
-}
-
 // ── Navigation ─────────────────────────────────────────────────
 function shiftDay(delta) {
   const d = dateFromKey(selectedDate);
@@ -539,7 +573,139 @@ function shiftDay(delta) {
 }
 function goToday() { selectedDate = getTodayKey(); render(); }
 
+// ── Type selector ──────────────────────────────────────────────
+function setType(t) {
+  addType = t;
+  ['daily','repeat','monthly'].forEach(x => {
+    const btn = document.getElementById('btn-' + x);
+    btn.className = 'type-btn' + (x === t ? ' active-' + x : '');
+  });
+}
+
 // ── Render ─────────────────────────────────────────────────────
+function heartSVG() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+}
+function checkSVG() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+}
+function trashSVG() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
+}
+
+function makeTaskRow(opts) {
+  // opts: { done, name, desc, pts, onCheck, onDelete, extraClass, extraButtons }
+  const row = document.createElement('div');
+  row.className = 'task-row' + (opts.done ? ' done' : '') + (opts.extraClass ? ' ' + opts.extraClass : '');
+  row.innerHTML = `
+    <div class="task-check">${checkSVG()}</div>
+    <div class="task-body">
+      <div class="task-name">${esc(opts.name)}</div>
+      ${opts.desc ? `<div class="task-desc">${esc(opts.desc)}</div>` : ''}
+    </div>
+    <div class="task-right">
+      <span class="pts-badge">${opts.pts} pts</span>
+      ${opts.extraButtons || ''}
+      <button class="task-delete" title="Delete">${trashSVG()}</button>
+    </div>`;
+  row.querySelector('.task-check').onclick = opts.onCheck;
+  row.querySelector('.task-delete').onclick = opts.onDelete;
+  return row;
+}
+
+function renderMonthly() {
+  const list = document.getElementById('monthlyList');
+  list.innerHTML = '';
+  const tasks = getMonthlyTasks(selectedDate);
+  const mk = monthKey(selectedDate);
+  const done = state.monthlyDone[selectedDate] || {};
+
+  if (!tasks.length) {
+    list.innerHTML = `<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>No monthly tasks for this month</div>`;
+    return;
+  }
+  tasks.forEach(t => {
+    const isDone = !!done[t.id];
+    const row = makeTaskRow({
+      done: isDone, name: t.name, desc: t.desc, pts: t.pts,
+      extraClass: 'monthly-row',
+      onCheck: () => {
+        ensureState();
+        if (!state.monthlyDone[selectedDate]) state.monthlyDone[selectedDate] = {};
+        state.monthlyDone[selectedDate][t.id] = !isDone;
+        scheduleSave(); render();
+      },
+      onDelete: () => {
+        state.monthly[mk] = state.monthly[mk].filter(x => x.id !== t.id);
+        scheduleSave(); render();
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
+function renderDaily() {
+  const list = document.getElementById('dailyList');
+  list.innerHTML = '';
+
+  // Repeating tasks for this day
+  const repeating = getRepeatingTasksForDay(selectedDate);
+  const rdone = state.repeatingDone[selectedDate] || {};
+
+  repeating.forEach(t => {
+    const isDone = !!rdone[t.id];
+    const deleteFutureBtn = `<button class="task-delete-future" title="Delete from tomorrow onward">Delete future</button>`;
+    const row = makeTaskRow({
+      done: isDone, name: t.name, desc: t.desc, pts: t.pts,
+      extraClass: 'repeat-row',
+      extraButtons: deleteFutureBtn,
+      onCheck: () => {
+        ensureState();
+        if (!state.repeatingDone[selectedDate]) state.repeatingDone[selectedDate] = {};
+        state.repeatingDone[selectedDate][t.id] = !isDone;
+        scheduleSave(); render();
+      },
+      onDelete: () => {
+        // Delete only today's instance — mark as deleted from today
+        ensureState();
+        state.repeatingDeleted[t.id] = selectedDate;
+        scheduleSave(); render();
+      }
+    });
+    // Wire the "delete future" button
+    row.querySelector('.task-delete-future').onclick = () => {
+      ensureState();
+      const d = dateFromKey(selectedDate);
+      d.setDate(d.getDate() + 1);
+      state.repeatingDeleted[t.id] = keyFromDate(d);
+      scheduleSave(); render();
+    };
+    list.appendChild(row);
+  });
+
+  // One-off daily tasks
+  const tasks = getDayTasks(selectedDate);
+  if (!tasks.length && !repeating.length) {
+    list.innerHTML = `<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>No tasks for this day — add one below</div>`;
+    return;
+  }
+
+  tasks.forEach((t, i) => {
+    const row = makeTaskRow({
+      done: t.done, name: t.name, desc: t.desc, pts: t.pts,
+      onCheck: () => {
+        getDayTasks(selectedDate)[i].done ^= true;
+        scheduleSave(); render();
+      },
+      onDelete: () => {
+        state.days[selectedDate].tasks.splice(i, 1);
+        scheduleSave(); render();
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
 function renderWeek() {
   const strip = document.getElementById('weekStrip');
   strip.innerHTML = '';
@@ -548,16 +714,12 @@ function renderWeek() {
   const sel = dateFromKey(selectedDate);
   const dow = sel.getDay();
   for (let i = 0; i < 7; i++) {
-    const d = new Date(sel);
-    d.setDate(sel.getDate() - dow + i);
+    const d = new Date(sel); d.setDate(sel.getDate() - dow + i);
     const key = keyFromDate(d);
     const pts = getDayPoints(key);
     const pill = document.createElement('div');
     pill.className = 'day-pill' + (key === selectedDate ? ' active' : '');
-    pill.innerHTML = `
-      <span class="day-label">${dayNames[d.getDay()]}</span>
-      <span class="day-num">${d.getDate()}</span>
-      <span class="day-pts">${pts > 0 ? pts : ''}</span>`;
+    pill.innerHTML = `<span class="day-label">${dayNames[d.getDay()]}</span><span class="day-num">${d.getDate()}</span><span class="day-pts">${pts > 0 ? pts : ''}</span>`;
     pill.onclick = () => { selectedDate = key; render(); };
     strip.appendChild(pill);
   }
@@ -569,46 +731,6 @@ function renderWeek() {
       : `${months[ws.getMonth()]} ${ws.getDate()} – ${months[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
 }
 
-function renderTasks() {
-  const list = document.getElementById('tasksList');
-  const day  = getDay(selectedDate);
-  list.innerHTML = '';
-  if (!day.tasks.length) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1"/>
-          <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
-        </svg>
-        No tasks for this day — add one below
-      </div>`;
-    return;
-  }
-  day.tasks.forEach((t, i) => {
-    const row = document.createElement('div');
-    row.className = 'task-row' + (t.done ? ' done' : '');
-    row.innerHTML = `
-      <div class="task-check" onclick="toggleTask(${i})" title="${t.done ? 'Mark incomplete' : 'Mark complete'}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-      </div>
-      <div class="task-body">
-        <div class="task-name">${esc(t.name)}</div>
-        ${t.desc ? `<div class="task-desc">${esc(t.desc)}</div>` : ''}
-      </div>
-      <div class="task-right">
-        <span class="pts-badge">${t.pts} pts</span>
-        <button class="task-delete" onclick="deleteTask(${i})" title="Delete task">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-          </svg>
-        </button>
-      </div>`;
-    list.appendChild(row);
-  });
-}
-
 function renderTotal() {
   document.getElementById('totalPts').textContent   = getDayPoints(selectedDate);
   document.getElementById('alltimePts').textContent = getAllTimePoints();
@@ -616,12 +738,10 @@ function renderTotal() {
     selectedDate === getTodayKey() ? 'Points earned today' : 'Points earned';
 }
 
-function render() { renderWeek(); renderTasks(); renderTotal(); }
+function render() { renderWeek(); renderMonthly(); renderDaily(); renderTotal(); }
 
-// ── Actions ────────────────────────────────────────────────────
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+// ── Add task ───────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function addTask() {
   const name = document.getElementById('taskName').value.trim();
@@ -629,7 +749,20 @@ function addTask() {
   const pts  = parseInt(document.getElementById('taskPts').value);
   if (!name) { document.getElementById('taskName').focus(); return; }
   if (!pts || pts < 1) { document.getElementById('taskPts').focus(); return; }
-  getDay(selectedDate).tasks.push({ name, desc, pts, done: false });
+  ensureState();
+
+  if (addType === 'monthly') {
+    const mk = monthKey(selectedDate);
+    if (!state.monthly[mk]) state.monthly[mk] = [];
+    state.monthly[mk].push({ id: uid(), name, desc, pts });
+
+  } else if (addType === 'repeat') {
+    state.repeating.push({ id: uid(), name, desc, pts, startDate: selectedDate });
+
+  } else {
+    getDayTasks(selectedDate).push({ id: uid(), name, desc, pts, done: false });
+  }
+
   document.getElementById('taskName').value = '';
   document.getElementById('taskDesc').value = '';
   document.getElementById('taskPts').value  = '';
@@ -638,22 +771,10 @@ function addTask() {
   document.getElementById('taskName').focus();
 }
 
-function toggleTask(i) {
-  getDay(selectedDate).tasks[i].done ^= true;
-  scheduleSave();
-  render();
-}
-
-function deleteTask(i) {
-  getDay(selectedDate).tasks.splice(i, 1);
-  scheduleSave();
-  render();
-}
-
 document.getElementById('taskName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('taskDesc').focus(); });
 document.getElementById('taskPts').addEventListener('keydown',  e => { if (e.key === 'Enter') addTask(); });
 
-// Poll every 30s for changes from the other user
+// Poll every 30s
 setInterval(() => { if (!saveTimer) loadFromServer(); }, 30000);
 </script>
 </body>
