@@ -441,7 +441,7 @@ document.getElementById('passwordInput').addEventListener('keydown', e => { if (
 // {
 //   days: { "2025-06-01": { tasks: [{id,name,desc,pts,done}] } },
 //   monthly: { "2025-06": [{id,name,desc,pts}] },          // templates (no done state)
-//   monthlyDone: { "2025-06": { "task-id": true } },        // per-month completion for monthly
+//   monthlyDone: { "2025-06": { "task-id": "2025-06-14" } },  // date it was completed (or false)
 //   repeating: [ {id,name,desc,pts,startDate} ],           // repeating templates
 //   repeatingDone: { "2025-06-01": { "task-id": true } },  // per-day completion for repeating
 //   repeatingDeleted: { "task-id": "2025-06-02" }          // deleted from this date onward
@@ -502,10 +502,10 @@ function getDayPoints(key) {
   // daily tasks
   const day = state.days[key];
   if (day) pts += day.tasks.reduce((s, t) => s + (t.done ? t.pts : 0), 0);
-  // monthly
+  // monthly — only count points on the specific day it was completed
   const mk = monthKey(key);
   const mdone = state.monthlyDone[mk] || {};
-  (state.monthly[mk] || []).forEach(t => { if (mdone[t.id]) pts += t.pts; });
+  (state.monthly[mk] || []).forEach(t => { if (mdone[t.id] === key) pts += t.pts; });
   // repeating
   const rdone = state.repeatingDone[key] || {};
   getRepeatingTasksForDay(key).forEach(t => { if (rdone[t.id]) pts += t.pts; });
@@ -521,7 +521,7 @@ function getAllTimePoints() {
     total += (day.tasks || []).reduce((s, t) => s + (t.done ? t.pts : 0), 0);
   });
 
-  // Monthly task points — count once per month, not per day
+  // Monthly task points — count once per month on whatever day they were completed
   Object.entries(state.monthlyDone).forEach(([mk, done]) => {
     const tasks = state.monthly[mk] || [];
     tasks.forEach(t => { if (done[t.id]) total += t.pts; });
@@ -643,7 +643,8 @@ function renderMonthly() {
       onCheck: () => {
         ensureState();
         if (!state.monthlyDone[mk]) state.monthlyDone[mk] = {};
-        state.monthlyDone[mk][t.id] = !isDone;
+        // toggle: if already done, clear it; otherwise store today's date as completion day
+        state.monthlyDone[mk][t.id] = isDone ? null : selectedDate;
         scheduleSave(); render();
       },
       onDelete: () => {
