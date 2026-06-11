@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Task Points Tracker</title>
+<title>Good Girl - Simple Points Tracker</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -18,14 +18,12 @@
     --pink-light:    #f4c0d1;
     --pink-mid:      #d4537e;
     --pink-deep:     #993556;
-    --pink-darker:   #72243e;
     --pink-bg:       #3d1f32;
     --pink-bg-light: #4d2840;
     --text-primary:  #f0dce8;
     --text-secondary:#b8829e;
     --text-muted:    #7a5068;
     --text-done:     #7a5068;
-    --radius-sm:     6px;
     --radius-md:     10px;
     --radius-lg:     14px;
     --radius-xl:     18px;
@@ -39,22 +37,113 @@
     padding: 2rem 1rem 4rem;
   }
 
-  .app { max-width: 640px; margin: 0 auto; }
-
-  /* ── header ── */
-  .app-header {
+  /* ── Lock screen ── */
+  #lockScreen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-page);
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 1.75rem;
+    justify-content: center;
+    z-index: 100;
+    padding: 1rem;
   }
-  .app-header svg { color: var(--pink-mid); }
-  .app-header h1 {
-    font-size: 20px;
+  #lockScreen.hidden { display: none; }
+
+  .lock-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .lock-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--pink-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lock-icon svg { color: var(--pink-mid); }
+  .lock-title {
+    font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
-    letter-spacing: -.3px;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .lock-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: -1rem;
+  }
+  .lock-field { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+  .lock-field label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .lock-field input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 16px;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color .15s;
+    letter-spacing: .1em;
+  }
+  .lock-field input:focus { border-color: var(--pink-mid); }
+  .lock-field input::placeholder { color: var(--text-muted); letter-spacing: 0; }
+  .lock-error {
+    font-size: 12px;
+    color: #e06060;
+    text-align: center;
+    min-height: 16px;
+  }
+  .lock-btn {
+    width: 100%;
+    height: 44px;
+    background: var(--pink-mid);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  .lock-btn:hover { background: var(--pink-deep); }
+  .lock-btn:active { transform: scale(.98); }
+
+  /* ── App (hidden until unlocked) ── */
+  #appScreen { display: none; }
+  #appScreen.visible { display: block; }
+
+  .app { max-width: 640px; margin: 0 auto; }
+
+  .app-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.75rem; }
+  .app-header svg { color: var(--pink-mid); flex-shrink: 0; }
+  .app-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -.2px;
     flex: 1;
+    line-height: 1.2;
   }
   .sync-indicator {
     font-size: 11px;
@@ -62,67 +151,43 @@
     padding: 3px 10px;
     border-radius: 20px;
     letter-spacing: .3px;
+    white-space: nowrap;
   }
-  .sync-indicator.syncing  { background: #2a2820; color: #c8a84a; }
-  .sync-indicator.saved    { background: #1e2d1e; color: #6abf6a; }
-  .sync-indicator.error    { background: #2d1a1a; color: #e06060; }
-  .sync-indicator.loading  { background: var(--bg-card); color: var(--text-muted); }
+  .sync-indicator.syncing { background: #2a2820; color: #c8a84a; }
+  .sync-indicator.saved   { background: #1e2d1e; color: #6abf6a; }
+  .sync-indicator.error   { background: #2d1a1a; color: #e06060; }
+  .sync-indicator.loading { background: var(--bg-card); color: var(--text-muted); }
 
-  /* ── week nav ── */
-  .week-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-  .week-nav-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    letter-spacing: -.1px;
-  }
+  .week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .week-nav-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: -.1px; }
   .week-nav-btns { display: flex; align-items: center; gap: 4px; }
   .nav-btn {
-    width: 32px;
-    height: 32px;
+    width: 32px; height: 32px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--bg-card);
     color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     transition: border-color .15s, color .15s, background .15s;
   }
   .nav-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
   .nav-btn svg { width: 16px; height: 16px; }
   .nav-today-btn {
-    height: 32px;
-    padding: 0 12px;
+    height: 32px; padding: 0 12px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--bg-card);
     color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 12px; font-weight: 600;
     cursor: pointer;
     transition: border-color .15s, color .15s, background .15s;
   }
   .nav-today-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
 
-  /* ── week strip ── */
-  .week-strip {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
-    margin-bottom: 1.5rem;
-  }
+  .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 1.5rem; }
   .day-pill {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
     padding: 9px 4px 7px;
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-light);
@@ -133,127 +198,58 @@
   }
   .day-pill:hover { border-color: var(--pink-deep); }
   .day-pill.active { background: var(--pink-bg); border-color: var(--pink-mid); }
-  .day-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .5px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
+  .day-label { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); }
   .day-pill.active .day-label { color: var(--pink-light); }
   .day-num { font-size: 16px; font-weight: 500; color: var(--text-primary); }
   .day-pill.active .day-num { color: #fff; }
   .day-pts { font-size: 10px; font-weight: 600; color: var(--pink-mid); min-height: 13px; }
 
-  /* ── all-time banner ── */
   .alltime-banner {
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     padding: 1rem 1.5rem;
     margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
+    display: flex; align-items: center;
   }
   .alltime-left { display: flex; align-items: center; gap: 12px; }
   .alltime-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
+    width: 40px; height: 40px; border-radius: 50%;
     background: var(--pink-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .alltime-icon svg { color: var(--pink-mid); }
-  .alltime-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .6px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 2px;
-  }
-  .alltime-val {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1;
-    letter-spacing: -.5px;
-  }
+  .alltime-label { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
+  .alltime-val { font-size: 28px; font-weight: 700; color: var(--text-primary); line-height: 1; letter-spacing: -.5px; }
   .alltime-unit { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 3px; }
 
-  /* ── daily total card ── */
   .total-card {
-    background: var(--pink-bg);
-    border: 1px solid #5c2040;
-    border-radius: var(--radius-lg);
-    padding: .9rem 1.25rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    background: var(--pink-bg); border: 1px solid #5c2040;
+    border-radius: var(--radius-lg); padding: .9rem 1.25rem; margin-bottom: 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
   }
-  .total-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .5px;
-    text-transform: uppercase;
-    color: var(--pink-light);
-    margin-bottom: 3px;
-    opacity: .8;
-  }
+  .total-label { font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--pink-light); margin-bottom: 3px; opacity: .8; }
   .total-val { font-size: 28px; font-weight: 700; color: #fff; line-height: 1; letter-spacing: -.5px; }
   .total-unit { font-size: 13px; font-weight: 500; color: var(--pink-light); margin-left: 4px; opacity: .7; }
-  .total-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--pink-bg-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  .total-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--pink-bg-light); display: flex; align-items: center; justify-content: center; }
   .total-icon svg { color: var(--pink-mid); }
 
-  /* ── section head ── */
-  .section-head {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .8px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-  }
+  .section-head { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
 
-  /* ── tasks list ── */
   .tasks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.75rem; }
   .task-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
-    padding: 12px 12px 12px 14px;
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: var(--radius-md); padding: 12px 12px 12px 14px;
     transition: border-color .15s, background .15s;
   }
   .task-row:hover { border-color: var(--border); }
   .task-row.done { background: var(--bg-done); border-color: var(--border-light); }
   .task-check {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 1.5px solid var(--pink-deep);
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    margin-top: 1px;
-    transition: all .15s;
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1.5px solid var(--pink-deep); background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; margin-top: 1px; transition: all .15s;
   }
   .task-check:hover { background: var(--pink-bg); }
   .task-row.done .task-check { background: var(--pink-mid); border-color: var(--pink-mid); }
@@ -265,108 +261,71 @@
   .task-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
   .task-row.done .task-desc { opacity: .6; }
   .task-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 1px; }
-  .pts-badge {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--pink-light);
-    background: var(--pink-bg-light);
-    padding: 3px 9px;
-    border-radius: 20px;
-  }
+  .pts-badge { font-size: 12px; font-weight: 600; color: var(--pink-light); background: var(--pink-bg-light); padding: 3px 9px; border-radius: 20px; }
   .task-row.done .pts-badge { opacity: .4; }
-  .task-delete {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-muted);
-    padding: 3px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    transition: color .15s;
-    line-height: 1;
-  }
+  .task-delete { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 3px; border-radius: 4px; display: flex; align-items: center; transition: color .15s; line-height: 1; }
   .task-delete:hover { color: #f09595; }
   .task-delete svg { width: 15px; height: 15px; }
 
-  .empty-state {
-    text-align: center;
-    padding: 2.5rem 1rem;
-    color: var(--text-muted);
-    font-size: 13px;
-    border: 1px dashed var(--border-light);
-    border-radius: var(--radius-lg);
-  }
+  .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 13px; border: 1px dashed var(--border-light); border-radius: var(--radius-lg); }
   .empty-state svg { display: block; margin: 0 auto 10px; color: var(--text-muted); opacity: .5; }
 
-  /* ── add form ── */
-  .add-form {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .add-form label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .5px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    display: block;
-    margin-bottom: 5px;
-  }
-  .add-form input[type="text"],
-  .add-form input[type="number"],
-  .add-form textarea {
-    width: 100%;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: 14px;
-    padding: 9px 12px;
-    outline: none;
-    transition: border-color .15s;
-    resize: none;
+  .add-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 1.25rem; display: flex; flex-direction: column; gap: 10px; }
+  .add-form label { font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 5px; }
+  .add-form input[type="text"], .add-form input[type="number"], .add-form textarea {
+    width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-md); color: var(--text-primary);
+    font-family: inherit; font-size: 14px; padding: 9px 12px;
+    outline: none; transition: border-color .15s; resize: none;
   }
   .add-form input:focus, .add-form textarea:focus { border-color: var(--pink-mid); }
   .add-form input::placeholder, .add-form textarea::placeholder { color: var(--text-muted); }
   .form-row { display: grid; grid-template-columns: 1fr 100px; gap: 10px; }
   .add-btn {
-    width: 100%;
-    height: 40px;
-    background: var(--pink-mid);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+    width: 100%; height: 40px; background: var(--pink-mid); color: #fff;
+    border: none; border-radius: var(--radius-md); font-size: 14px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
     transition: background .15s, transform .1s;
   }
   .add-btn:hover { background: var(--pink-deep); }
   .add-btn:active { transform: scale(.98); }
   .add-btn svg { width: 16px; height: 16px; }
-
   .divider { border: none; border-top: 1px solid var(--border-light); margin: 1.5rem 0; }
 </style>
 </head>
 <body>
+
+<!-- ── Lock screen ── -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="lock-title">Good Girl</div>
+      <div class="lock-sub">Enter the password to continue</div>
+    </div>
+    <div class="lock-field">
+      <label for="passwordInput">Password</label>
+      <input type="password" id="passwordInput" placeholder="••••••••••••" autocomplete="current-password" />
+    </div>
+    <div class="lock-error" id="lockError"></div>
+    <button class="lock-btn" onclick="submitPassword()">Unlock</button>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="appScreen">
 <div class="app">
 
   <div class="app-header">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
     </svg>
-    <h1>Task Points</h1>
+    <h1>Good Girl — Simple Points Tracker</h1>
     <span class="sync-indicator loading" id="syncStatus">Loading…</span>
   </div>
 
@@ -446,7 +405,56 @@
   </div>
 
 </div>
+</div>
+
 <script>
+// ── Auth ───────────────────────────────────────────────────────
+let sessionPassword = sessionStorage.getItem('app_pw') || '';
+
+async function submitPassword() {
+  const pw = document.getElementById('passwordInput').value;
+  if (!pw) return;
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    if (res.ok) {
+      sessionPassword = pw;
+      sessionStorage.setItem('app_pw', pw);
+      unlock();
+    } else {
+      const err = document.getElementById('lockError');
+      err.textContent = 'Incorrect password — try again';
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('passwordInput').focus();
+      setTimeout(() => { err.textContent = ''; }, 3000);
+    }
+  } catch {
+    document.getElementById('lockError').textContent = 'Could not reach server';
+  }
+}
+
+function unlock() {
+  document.getElementById('lockScreen').classList.add('hidden');
+  document.getElementById('appScreen').classList.add('visible');
+  loadFromServer();
+}
+
+// If we have a stored password, try it straight away
+if (sessionPassword) {
+  fetch('/api/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: sessionPassword })
+  }).then(r => { if (r.ok) unlock(); else sessionStorage.removeItem('app_pw'); });
+}
+
+document.getElementById('passwordInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitPassword();
+});
+
 // ── State ──────────────────────────────────────────────────────
 let state = {};
 let selectedDate = keyFromDate(new Date());
@@ -463,15 +471,20 @@ function dateFromKey(key) {
 function getTodayKey() { return keyFromDate(new Date()); }
 
 // ── API ────────────────────────────────────────────────────────
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'X-App-Password': sessionPassword };
+}
+
 async function loadFromServer() {
   setSync('loading', 'Loading…');
   try {
-    const res = await fetch('/api/data');
-    if (!res.ok) throw new Error('Server error');
+    const res = await fetch('/api/data', { headers: authHeaders() });
+    if (res.status === 401) { sessionStorage.removeItem('app_pw'); location.reload(); return; }
+    if (!res.ok) throw new Error();
     state = await res.json();
     setSync('saved', 'Up to date');
     render();
-  } catch(e) {
+  } catch {
     setSync('error', 'Could not load');
     render();
   }
@@ -482,20 +495,19 @@ async function saveToServer() {
   try {
     const res = await fetch('/api/data', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(state)
     });
-    if (!res.ok) throw new Error('Server error');
+    if (!res.ok) throw new Error();
     setSync('saved', 'Saved');
-  } catch(e) {
+  } catch {
     setSync('error', 'Save failed');
   }
 }
 
-// Debounce saves — wait 600ms after last change before hitting the server
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveToServer, 600);
+  saveTimer = setTimeout(() => { saveTimer = null; saveToServer(); }, 600);
 }
 
 function setSync(cls, text) {
@@ -598,9 +610,9 @@ function renderTasks() {
 }
 
 function renderTotal() {
-  document.getElementById('totalPts').textContent    = getDayPoints(selectedDate);
-  document.getElementById('alltimePts').textContent  = getAllTimePoints();
-  document.getElementById('totalLabel').textContent  =
+  document.getElementById('totalPts').textContent   = getDayPoints(selectedDate);
+  document.getElementById('alltimePts').textContent = getAllTimePoints();
+  document.getElementById('totalLabel').textContent =
     selectedDate === getTodayKey() ? 'Points earned today' : 'Points earned';
 }
 
@@ -638,18 +650,11 @@ function deleteTask(i) {
   render();
 }
 
-// ── Keyboard ───────────────────────────────────────────────────
 document.getElementById('taskName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('taskDesc').focus(); });
 document.getElementById('taskPts').addEventListener('keydown',  e => { if (e.key === 'Enter') addTask(); });
 
-// ── Poll for changes every 30s so both people stay in sync ─────
-setInterval(async () => {
-  // Only refresh from server if no pending local save
-  if (!saveTimer) await loadFromServer();
-}, 30000);
-
-// ── Boot ───────────────────────────────────────────────────────
-loadFromServer();
+// Poll every 30s for changes from the other user
+setInterval(() => { if (!saveTimer) loadFromServer(); }, 30000);
 </script>
 </body>
 </html>
