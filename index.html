@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Task Points Tracker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-page:       #1a1118;
+    --bg-surface:    #221620;
+    --bg-card:       #2a1c27;
+    --bg-input:      #1f1520;
+    --bg-done:       #2d1a28;
+    --border:        #4a2e42;
+    --border-light:  #3a2235;
+    --pink-light:    #f4c0d1;
+    --pink-mid:      #d4537e;
+    --pink-deep:     #993556;
+    --pink-darker:   #72243e;
+    --pink-bg:       #3d1f32;
+    --pink-bg-light: #4d2840;
+    --text-primary:  #f0dce8;
+    --text-secondary:#b8829e;
+    --text-muted:    #7a5068;
+    --text-done:     #7a5068;
+    --radius-sm:     6px;
+    --radius-md:     10px;
+    --radius-lg:     14px;
+    --radius-xl:     18px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .app { max-width: 640px; margin: 0 auto; }
+
+  /* ── header ── */
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.75rem;
+  }
+  .app-header svg { color: var(--pink-mid); }
+  .app-header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -.3px;
+    flex: 1;
+  }
+  .sync-indicator {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: .3px;
+  }
+  .sync-indicator.syncing  { background: #2a2820; color: #c8a84a; }
+  .sync-indicator.saved    { background: #1e2d1e; color: #6abf6a; }
+  .sync-indicator.error    { background: #2d1a1a; color: #e06060; }
+  .sync-indicator.loading  { background: var(--bg-card); color: var(--text-muted); }
+
+  /* ── week nav ── */
+  .week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .week-nav-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: -.1px;
+  }
+  .week-nav-btns { display: flex; align-items: center; gap: 4px; }
+  .nav-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .nav-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
+  .nav-btn svg { width: 16px; height: 16px; }
+  .nav-today-btn {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .nav-today-btn:hover { border-color: var(--pink-mid); color: var(--pink-light); background: var(--pink-bg); }
+
+  /* ── week strip ── */
+  .week-strip {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin-bottom: 1.5rem;
+  }
+  .day-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 9px 4px 7px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    user-select: none;
+  }
+  .day-pill:hover { border-color: var(--pink-deep); }
+  .day-pill.active { background: var(--pink-bg); border-color: var(--pink-mid); }
+  .day-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .day-pill.active .day-label { color: var(--pink-light); }
+  .day-num { font-size: 16px; font-weight: 500; color: var(--text-primary); }
+  .day-pill.active .day-num { color: #fff; }
+  .day-pts { font-size: 10px; font-weight: 600; color: var(--pink-mid); min-height: 13px; }
+
+  /* ── all-time banner ── */
+  .alltime-banner {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+  }
+  .alltime-left { display: flex; align-items: center; gap: 12px; }
+  .alltime-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--pink-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .alltime-icon svg { color: var(--pink-mid); }
+  .alltime-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .alltime-val {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+    letter-spacing: -.5px;
+  }
+  .alltime-unit { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-left: 3px; }
+
+  /* ── daily total card ── */
+  .total-card {
+    background: var(--pink-bg);
+    border: 1px solid #5c2040;
+    border-radius: var(--radius-lg);
+    padding: .9rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .total-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--pink-light);
+    margin-bottom: 3px;
+    opacity: .8;
+  }
+  .total-val { font-size: 28px; font-weight: 700; color: #fff; line-height: 1; letter-spacing: -.5px; }
+  .total-unit { font-size: 13px; font-weight: 500; color: var(--pink-light); margin-left: 4px; opacity: .7; }
+  .total-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--pink-bg-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .total-icon svg { color: var(--pink-mid); }
+
+  /* ── section head ── */
+  .section-head {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  /* ── tasks list ── */
+  .tasks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.75rem; }
+  .task-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 12px 12px 12px 14px;
+    transition: border-color .15s, background .15s;
+  }
+  .task-row:hover { border-color: var(--border); }
+  .task-row.done { background: var(--bg-done); border-color: var(--border-light); }
+  .task-check {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1.5px solid var(--pink-deep);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 1px;
+    transition: all .15s;
+  }
+  .task-check:hover { background: var(--pink-bg); }
+  .task-row.done .task-check { background: var(--pink-mid); border-color: var(--pink-mid); }
+  .task-check svg { color: transparent; width: 13px; height: 13px; }
+  .task-row.done .task-check svg { color: #fff; }
+  .task-body { flex: 1; min-width: 0; }
+  .task-name { font-size: 14px; font-weight: 500; color: var(--text-primary); line-height: 1.3; }
+  .task-row.done .task-name { color: var(--text-done); text-decoration: line-through; }
+  .task-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+  .task-row.done .task-desc { opacity: .6; }
+  .task-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 1px; }
+  .pts-badge {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--pink-light);
+    background: var(--pink-bg-light);
+    padding: 3px 9px;
+    border-radius: 20px;
+  }
+  .task-row.done .pts-badge { opacity: .4; }
+  .task-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 3px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    transition: color .15s;
+    line-height: 1;
+  }
+  .task-delete:hover { color: #f09595; }
+  .task-delete svg { width: 15px; height: 15px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--text-muted);
+    font-size: 13px;
+    border: 1px dashed var(--border-light);
+    border-radius: var(--radius-lg);
+  }
+  .empty-state svg { display: block; margin: 0 auto 10px; color: var(--text-muted); opacity: .5; }
+
+  /* ── add form ── */
+  .add-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .add-form label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 5px;
+  }
+  .add-form input[type="text"],
+  .add-form input[type="number"],
+  .add-form textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color .15s;
+    resize: none;
+  }
+  .add-form input:focus, .add-form textarea:focus { border-color: var(--pink-mid); }
+  .add-form input::placeholder, .add-form textarea::placeholder { color: var(--text-muted); }
+  .form-row { display: grid; grid-template-columns: 1fr 100px; gap: 10px; }
+  .add-btn {
+    width: 100%;
+    height: 40px;
+    background: var(--pink-mid);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background .15s, transform .1s;
+  }
+  .add-btn:hover { background: var(--pink-deep); }
+  .add-btn:active { transform: scale(.98); }
+  .add-btn svg { width: 16px; height: 16px; }
+
+  .divider { border: none; border-top: 1px solid var(--border-light); margin: 1.5rem 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="app-header">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+    <h1>Task Points</h1>
+    <span class="sync-indicator loading" id="syncStatus">Loading…</span>
+  </div>
+
+  <div class="alltime-banner">
+    <div class="alltime-left">
+      <div class="alltime-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+      </div>
+      <div>
+        <div class="alltime-label">Total points earned</div>
+        <div style="display:flex;align-items:baseline;gap:3px">
+          <span class="alltime-val" id="alltimePts">—</span>
+          <span class="alltime-unit">pts all time</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="week-nav">
+    <span class="week-nav-label" id="weekLabel"></span>
+    <div class="week-nav-btns">
+      <button class="nav-btn" onclick="shiftDay(-1)" title="Previous day">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="nav-today-btn" onclick="goToday()">Today</button>
+      <button class="nav-btn" onclick="shiftDay(1)" title="Next day">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="week-strip" id="weekStrip"></div>
+
+  <div class="total-card">
+    <div>
+      <div class="total-label" id="totalLabel">Points earned today</div>
+      <div style="display:flex;align-items:baseline;gap:4px">
+        <div class="total-val" id="totalPts">—</div>
+        <span class="total-unit">pts</span>
+      </div>
+    </div>
+    <div class="total-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="section-head">Tasks</div>
+  <div class="tasks-list" id="tasksList"></div>
+
+  <hr class="divider" />
+
+  <div class="section-head">Add a task</div>
+  <div class="add-form">
+    <div>
+      <label for="taskName">Task name</label>
+      <input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80" />
+    </div>
+    <div>
+      <label for="taskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label>
+      <textarea id="taskDesc" rows="2" placeholder="Any notes or details…" maxlength="200"></textarea>
+    </div>
+    <div class="form-row">
+      <div>
+        <label for="taskPts">Point value</label>
+        <input type="number" id="taskPts" placeholder="10" min="1" max="9999" />
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:flex-end">
+        <button class="add-btn" onclick="addTask()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add task
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ── State ──────────────────────────────────────────────────────
+let state = {};
+let selectedDate = keyFromDate(new Date());
+let saveTimer = null;
+
+// ── Date helpers ───────────────────────────────────────────────
+function keyFromDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function dateFromKey(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function getTodayKey() { return keyFromDate(new Date()); }
+
+// ── API ────────────────────────────────────────────────────────
+async function loadFromServer() {
+  setSync('loading', 'Loading…');
+  try {
+    const res = await fetch('/api/data');
+    if (!res.ok) throw new Error('Server error');
+    state = await res.json();
+    setSync('saved', 'Up to date');
+    render();
+  } catch(e) {
+    setSync('error', 'Could not load');
+    render();
+  }
+}
+
+async function saveToServer() {
+  setSync('syncing', 'Saving…');
+  try {
+    const res = await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state)
+    });
+    if (!res.ok) throw new Error('Server error');
+    setSync('saved', 'Saved');
+  } catch(e) {
+    setSync('error', 'Save failed');
+  }
+}
+
+// Debounce saves — wait 600ms after last change before hitting the server
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToServer, 600);
+}
+
+function setSync(cls, text) {
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-indicator ' + cls;
+  el.textContent = text;
+}
+
+// ── Data helpers ───────────────────────────────────────────────
+function getDay(key) {
+  if (!state[key]) state[key] = { tasks: [] };
+  return state[key];
+}
+function getDayPoints(key) {
+  if (!state[key]) return 0;
+  return state[key].tasks.reduce((s, t) => s + (t.done ? t.pts : 0), 0);
+}
+function getAllTimePoints() {
+  return Object.values(state).reduce((total, day) =>
+    total + (day.tasks || []).reduce((s, t) => s + (t.done ? t.pts : 0), 0), 0);
+}
+
+// ── Navigation ─────────────────────────────────────────────────
+function shiftDay(delta) {
+  const d = dateFromKey(selectedDate);
+  d.setDate(d.getDate() + delta);
+  selectedDate = keyFromDate(d);
+  render();
+}
+function goToday() { selectedDate = getTodayKey(); render(); }
+
+// ── Render ─────────────────────────────────────────────────────
+function renderWeek() {
+  const strip = document.getElementById('weekStrip');
+  strip.innerHTML = '';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const sel = dateFromKey(selectedDate);
+  const dow = sel.getDay();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sel);
+    d.setDate(sel.getDate() - dow + i);
+    const key = keyFromDate(d);
+    const pts = getDayPoints(key);
+    const pill = document.createElement('div');
+    pill.className = 'day-pill' + (key === selectedDate ? ' active' : '');
+    pill.innerHTML = `
+      <span class="day-label">${dayNames[d.getDay()]}</span>
+      <span class="day-num">${d.getDate()}</span>
+      <span class="day-pts">${pts > 0 ? pts : ''}</span>`;
+    pill.onclick = () => { selectedDate = key; render(); };
+    strip.appendChild(pill);
+  }
+  const ws = new Date(sel); ws.setDate(sel.getDate() - dow);
+  const we = new Date(sel); we.setDate(sel.getDate() - dow + 6);
+  document.getElementById('weekLabel').textContent =
+    ws.getMonth() === we.getMonth()
+      ? `${months[ws.getMonth()]} ${ws.getDate()}–${we.getDate()}, ${ws.getFullYear()}`
+      : `${months[ws.getMonth()]} ${ws.getDate()} – ${months[we.getMonth()]} ${we.getDate()}, ${we.getFullYear()}`;
+}
+
+function renderTasks() {
+  const list = document.getElementById('tasksList');
+  const day  = getDay(selectedDate);
+  list.innerHTML = '';
+  if (!day.tasks.length) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+        </svg>
+        No tasks for this day — add one below
+      </div>`;
+    return;
+  }
+  day.tasks.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'task-row' + (t.done ? ' done' : '');
+    row.innerHTML = `
+      <div class="task-check" onclick="toggleTask(${i})" title="${t.done ? 'Mark incomplete' : 'Mark complete'}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="task-body">
+        <div class="task-name">${esc(t.name)}</div>
+        ${t.desc ? `<div class="task-desc">${esc(t.desc)}</div>` : ''}
+      </div>
+      <div class="task-right">
+        <span class="pts-badge">${t.pts} pts</span>
+        <button class="task-delete" onclick="deleteTask(${i})" title="Delete task">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+function renderTotal() {
+  document.getElementById('totalPts').textContent    = getDayPoints(selectedDate);
+  document.getElementById('alltimePts').textContent  = getAllTimePoints();
+  document.getElementById('totalLabel').textContent  =
+    selectedDate === getTodayKey() ? 'Points earned today' : 'Points earned';
+}
+
+function render() { renderWeek(); renderTasks(); renderTotal(); }
+
+// ── Actions ────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function addTask() {
+  const name = document.getElementById('taskName').value.trim();
+  const desc = document.getElementById('taskDesc').value.trim();
+  const pts  = parseInt(document.getElementById('taskPts').value);
+  if (!name) { document.getElementById('taskName').focus(); return; }
+  if (!pts || pts < 1) { document.getElementById('taskPts').focus(); return; }
+  getDay(selectedDate).tasks.push({ name, desc, pts, done: false });
+  document.getElementById('taskName').value = '';
+  document.getElementById('taskDesc').value = '';
+  document.getElementById('taskPts').value  = '';
+  scheduleSave();
+  render();
+  document.getElementById('taskName').focus();
+}
+
+function toggleTask(i) {
+  getDay(selectedDate).tasks[i].done ^= true;
+  scheduleSave();
+  render();
+}
+
+function deleteTask(i) {
+  getDay(selectedDate).tasks.splice(i, 1);
+  scheduleSave();
+  render();
+}
+
+// ── Keyboard ───────────────────────────────────────────────────
+document.getElementById('taskName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('taskDesc').focus(); });
+document.getElementById('taskPts').addEventListener('keydown',  e => { if (e.key === 'Enter') addTask(); });
+
+// ── Poll for changes every 30s so both people stay in sync ─────
+setInterval(async () => {
+  // Only refresh from server if no pending local save
+  if (!saveTimer) await loadFromServer();
+}, 30000);
+
+// ── Boot ───────────────────────────────────────────────────────
+loadFromServer();
+</script>
+</body>
+</html>
