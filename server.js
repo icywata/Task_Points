@@ -13,8 +13,11 @@ const GMAIL_PASS = process.env.GMAIL_PASS || '';
 
 const transporter = GMAIL_USER && GMAIL_PASS
   ? nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: GMAIL_USER, pass: GMAIL_PASS }
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+      tls: { rejectUnauthorized: false }
     })
   : null;
 
@@ -239,5 +242,13 @@ initDb().then(() => {
   server.listen(PORT, () => {
     console.log(`Task Points server running on port ${PORT}`);
     scheduleDailyReminders();
+    if (transporter) {
+      transporter.verify((err) => {
+        if (err) console.error('Gmail auth failed:', err.message);
+        else console.log('Gmail ready to send');
+      });
+    } else {
+      console.log('No Gmail credentials — email disabled');
+    }
   });
 });
