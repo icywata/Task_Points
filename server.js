@@ -1,4 +1,5 @@
-const http     = require('http');
+Here's the full server.js — copy this and replace the file on GitHub:
+javascriptconst http     = require('http');
 const fs       = require('fs');
 const path     = require('path');
 const nodemailer = require('nodemailer');
@@ -7,6 +8,8 @@ const PORT      = process.env.PORT || 3000;
 const HTML_FILE = path.join(__dirname, 'index.html');
 const PASSWORD  = process.env.APP_PASSWORD || 'interesting';
 
+console.log('Server v3 starting — email via port 587');
+
 // ── Mailer setup ───────────────────────────────────────────────
 const GMAIL_USER = process.env.GMAIL_USER || '';
 const GMAIL_PASS = process.env.GMAIL_PASS || '';
@@ -14,8 +17,9 @@ const GMAIL_PASS = process.env.GMAIL_PASS || '';
 const transporter = GMAIL_USER && GMAIL_PASS
   ? nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false,
+      requireTLS: true,
       auth: { user: GMAIL_USER, pass: GMAIL_PASS },
       tls: { rejectUnauthorized: false }
     })
@@ -81,7 +85,6 @@ async function writeData(obj) {
 function checkAuth(req) { return (req.headers['x-app-password'] || '') === PASSWORD; }
 
 // ── Expiry reminder scheduler ──────────────────────────────────
-// Runs once per day at 8am server time, sends reminders for tasks expiring today
 function scheduleDailyReminders() {
   function msUntil8am() {
     const now = new Date();
@@ -106,7 +109,7 @@ function scheduleDailyReminders() {
         const expiringToday = profileData.assigned.filter(t => !t.completedOn && t.expiresOn === todayKey);
         if (!expiringToday.length) continue;
 
-        const profileName = profileKey === 'gg' ? 'Good Girl' : 'Daddy';
+        const firstName = profileData.firstName || profileData.nickname || (profileKey === 'gg' ? 'Good Girl' : 'Daddy');
         const taskList = expiringToday.map(t =>
           `<li style="margin-bottom:8px"><strong>${t.name}</strong>${t.desc ? ` — ${t.desc}` : ''} <span style="color:#e8a84a">(${t.pts} pts)</span></li>`
         ).join('');
@@ -114,21 +117,18 @@ function scheduleDailyReminders() {
         await sendEmail(email,
           `⏰ ${expiringToday.length} task${expiringToday.length > 1 ? 's' : ''} expiring today`,
           `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
-            <h2 style="color:#d4537e;margin-bottom:1rem">Tasks expiring today, ${profileName}</h2>
+            <h2 style="color:#d4537e;margin-bottom:1rem">Tasks expiring today, ${firstName}!</h2>
             <p style="color:#b8829e;margin-bottom:1rem">Don't forget — these assigned tasks expire at the end of today:</p>
             <ul style="padding-left:1.25rem;color:#f0dce8">${taskList}</ul>
-            <p style="margin-top:1.5rem"><a href="#" style="background:#d4537e;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">Open Tracker</a></p>
           </div>`
         );
       }
     } catch(e) {
       console.error('Reminder check failed:', e.message);
     }
-    // Schedule next run in 24 hours
     setTimeout(runReminders, 24 * 60 * 60 * 1000);
   }
 
-  // Schedule first run at next 8am
   setTimeout(runReminders, msUntil8am());
   console.log(`Daily reminders scheduled — first run in ${Math.round(msUntil8am()/60000)} minutes`);
 }
@@ -143,7 +143,6 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Serve HTML
   if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
     fs.readFile(HTML_FILE, (err, data) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
@@ -153,7 +152,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Auth check
   if (req.method === 'POST' && url === '/api/auth') {
     let body = '';
     req.on('data', c => { body += c; });
@@ -172,14 +170,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Data endpoints
   if (url === '/api/data') {
     if (!checkAuth(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
     }
-
     if (req.method === 'GET') {
       try {
         const data = await readData();
@@ -188,7 +184,6 @@ const server = http.createServer(async (req, res) => {
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
       return;
     }
-
     if (req.method === 'POST') {
       let body = '';
       req.on('data', c => { body += c; });
@@ -203,7 +198,6 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Send notification email when a new assigned task is created
   if (req.method === 'POST' && url === '/api/notify/assigned') {
     if (!checkAuth(req)) { res.writeHead(401); res.end(); return; }
     let body = '';
