@@ -209,6 +209,14 @@
   .shop-delete:hover { color:#f09595; }
   .shop-delete svg { width:15px; height:15px; }
 
+  /* Profile screen */
+  .profile-info-card { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-xl); padding:1.5rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1.25rem; }
+  .profile-avatar { width:64px; height:64px; border-radius:50%; background:var(--accent-bg); border:2px solid var(--accent-mid); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .profile-avatar svg { color:var(--accent-mid); width:30px; height:30px; }
+  .profile-display-name { font-size:22px; font-weight:700; color:var(--text-primary); letter-spacing:-.3px; }
+  .profile-display-email { font-size:13px; color:var(--text-muted); margin-top:3px; }
+  .profile-display-pts { font-size:12px; font-weight:600; color:var(--accent-mid); margin-top:6px; }
+
   /* Inventory */
   .inv-item { display:flex; align-items:flex-start; gap:12px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:12px 12px 12px 14px; transition:background .15s; }
   .inv-item.fulfilled { background:var(--bg-done); }
@@ -269,6 +277,10 @@
     <button class="screen-tab" id="tab-shop" onclick="switchScreen('shop')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
       Points Shop
+    </button>
+    <button class="screen-tab" id="tab-profile" onclick="switchScreen('profile')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Profile
     </button>
   </div>
 
@@ -354,6 +366,38 @@
         </div>
       </div>
     </div>
+
+  </div>
+
+  <!-- ── PROFILE SCREEN ── -->
+  <div class="screen" id="screen-profile">
+
+    <div class="profile-info-card" id="profileInfoCard">
+      <!-- filled by renderProfile() -->
+    </div>
+
+    <hr class="divider" style="margin-top:0" />
+    <div class="section-head">Profile settings</div>
+    <div class="add-form">
+      <div class="form-row">
+        <div><label for="profileFirstName">First name</label><input type="text" id="profileFirstName" placeholder="e.g. Sophia" maxlength="40" /></div>
+        <div><label for="profileLastName">Last name</label><input type="text" id="profileLastName" placeholder="e.g. Carter" maxlength="40" /></div>
+      </div>
+      <div>
+        <label for="profileNickname">Nickname <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">shown on the tab</span></label>
+        <input type="text" id="profileNickname" placeholder="e.g. Good Girl" maxlength="30" />
+      </div>
+      <div>
+        <label for="profileEmail">Email address <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">for task notifications</span></label>
+        <input type="text" id="profileEmail" placeholder="e.g. sophia@gmail.com" maxlength="120" />
+      </div>
+      <button class="add-btn" onclick="saveProfile()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save profile
+      </button>
+      <div id="profileSavedMsg" style="font-size:12px;color:#6abf6a;min-height:16px;text-align:center"></div>
+    </div>
+
   </div>
 
   <!-- ── SHOP SCREEN ── -->
@@ -449,11 +493,12 @@ let currentScreen = 'tracker';
 
 function switchScreen(s) {
   currentScreen = s;
-  ['tracker','shop'].forEach(x => {
+  ['tracker','shop','profile'].forEach(x => {
     document.getElementById('screen-'+x).className = 'screen'+(x===s?' visible':'');
     document.getElementById('tab-'+x).className = 'screen-tab'+(x===s?' active':'');
   });
   if (s==='shop') renderShop();
+  if (s==='profile') renderProfile();
 }
 
 function switchProfile(p) {
@@ -470,6 +515,8 @@ function switchProfile(p) {
   ti.innerHTML = p==='gg' ? heartPath() : starPath();
   render();
   if (currentScreen==='shop') renderShop();
+  if (currentScreen==='profile') renderProfile();
+  updateProfileButtonLabels();
 }
 
 function heartPath() { return `<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>`; }
@@ -558,6 +605,8 @@ async function loadFromServer() {
     state=await res.json(); ps();
     setSync('saved','Up to date'); render();
     if(currentScreen==='shop') renderShop();
+    if(currentScreen==='profile') renderProfile();
+    updateProfileButtonLabels();
   } catch { setSync('error','Could not load'); render(); }
 }
 async function saveToServer() {
@@ -836,6 +885,77 @@ function redeemReward(item) {
   scheduleSave(); renderShop(); renderTotal();
 }
 
+// ── Profile screen ────────────────────────────────────────────────
+function renderProfile() {
+  const p = ps();
+  const nickname = p.nickname || (profile === 'gg' ? 'Good Girl' : 'Daddy');
+  const firstName = p.firstName || '';
+  const fullName = [p.firstName, p.lastName].filter(Boolean).join(' ') || nickname;
+  const email = p.notificationEmail || '';
+  const earned = getTotalEarned();
+  const balance = earned - getTotalSpent();
+  const card = document.getElementById('profileInfoCard');
+  const iconSvg = profile === 'gg'
+    ? `<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>`
+    : `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`;
+  card.innerHTML = `
+    <div class="profile-avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>
+    </div>
+    <div>
+      <div class="profile-display-name">${esc(fullName)}</div>
+      ${nickname !== fullName ? `<div style="font-size:13px;color:var(--accent-mid);margin-top:1px">"${esc(nickname)}"</div>` : ''}
+      <div class="profile-display-email">${email ? esc(email) : 'No email set'}</div>
+      <div class="profile-display-pts">${balance} pts available · ${earned} earned</div>
+    </div>`;
+  document.getElementById('profileFirstName').value = p.firstName || '';
+  document.getElementById('profileLastName').value  = p.lastName  || '';
+  document.getElementById('profileNickname').value  = p.nickname  || '';
+  document.getElementById('profileEmail').value     = email;
+}
+
+function saveProfile() {
+  const firstName = document.getElementById('profileFirstName').value.trim();
+  const lastName  = document.getElementById('profileLastName').value.trim();
+  const nickname  = document.getElementById('profileNickname').value.trim();
+  const email     = document.getElementById('profileEmail').value.trim();
+  ps().firstName = firstName;
+  ps().lastName  = lastName;
+  ps().nickname  = nickname;
+  ps().notificationEmail = email;
+  scheduleSave();
+  updateProfileButtonLabels();
+  renderProfile();
+  const msg = document.getElementById('profileSavedMsg');
+  msg.textContent = '✓ Profile saved';
+  setTimeout(() => { msg.textContent = ''; }, 3000);
+}
+
+function updateProfileButtonLabels() {
+  const ggName  = (state.gg  && state.gg.nickname)  || 'Good Girl';
+  const dadName = (state.dad && state.dad.nickname) || 'Daddy';
+  const ggBtn  = document.getElementById('profileBtnGG');
+  const dadBtn = document.getElementById('profileBtnDad');
+  ggBtn.childNodes[ggBtn.childNodes.length-1].textContent  = ' ' + ggName;
+  dadBtn.childNodes[dadBtn.childNodes.length-1].textContent = ' ' + dadName;
+}
+
+function loadEmailField() {
+  // kept for compatibility — no-op now, profile screen handles this
+}
+  // Always notify Good Girl's email when an assigned task is created
+  const ggState = state['gg'];
+  const to = ggState && ggState.notificationEmail;
+  if (!to) return;
+  try {
+    await fetch('/api/notify/assigned', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ to, taskName: task.name, taskDesc: task.desc, pts: task.pts, expiresOn, profileName: (state.gg && state.gg.firstName) || (state.gg && state.gg.nickname) || 'Good Girl' })
+    });
+  } catch(e) { console.log('Notification failed:', e); }
+}
+
 // ── Add task ─────────────────────────────────────────────────────
 function addTask() {
   const name=document.getElementById('taskName').value.trim();
@@ -849,8 +969,10 @@ function addTask() {
   else if(addType==='assigned'){
     const expiry=document.getElementById('taskExpiry').value;
     if(!expiry){document.getElementById('taskExpiry').focus();return;}
-    ps().assigned.push({id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null});
+    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null};
+    ps().assigned.push(task);
     document.getElementById('taskExpiry').value='';
+    notifyAssigned(task, expiry); // fire and forget
   }
   else{getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false});}
   document.getElementById('taskName').value='';
