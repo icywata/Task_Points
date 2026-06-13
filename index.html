@@ -943,6 +943,8 @@ function updateProfileButtonLabels() {
 function loadEmailField() {
   // kept for compatibility — no-op now, profile screen handles this
 }
+
+async function notifyAssigned(task, expiresOn) {
   // Always notify Good Girl's email when an assigned task is created
   const ggState = state['gg'];
   const to = ggState && ggState.notificationEmail;
