@@ -288,8 +288,9 @@
           <div class="alltime-label" id="alltimeLabel">Good Girl's total points</div>
           <div style="display:flex;align-items:baseline;gap:3px">
             <span class="alltime-val" id="alltimePts">—</span>
-            <span class="alltime-unit">pts earned</span>
+            <span class="alltime-unit">pts available</span>
           </div>
+          <div id="alltimeEarned" style="font-size:11px;color:var(--text-muted);margin-top:2px"></div>
         </div>
       </div>
     </div>
@@ -744,9 +745,18 @@ function renderWeek() {
 }
 
 function renderTotal() {
-  document.getElementById('totalPts').textContent=getDayPoints(selectedDate);
-  document.getElementById('alltimePts').textContent=getTotalEarned();
-  document.getElementById('totalLabel').textContent=selectedDate===getTodayKey()?'Points earned today':'Points earned';
+  const earned = getTotalEarned();
+  const spent  = getTotalSpent();
+  const balance = earned - spent;
+  document.getElementById('totalPts').textContent  = getDayPoints(selectedDate);
+  document.getElementById('alltimePts').textContent = balance;
+  const earnedEl = document.getElementById('alltimeEarned');
+  if (spent > 0) {
+    earnedEl.textContent = `${earned} earned · ${spent} spent on rewards`;
+  } else {
+    earnedEl.textContent = `${earned} pts earned total`;
+  }
+  document.getElementById('totalLabel').textContent = selectedDate===getTodayKey() ? 'Points earned today' : 'Points earned';
 }
 
 function render() { renderWeek(); renderAssigned(); renderMonthly(); renderDaily(); renderTotal(); }
