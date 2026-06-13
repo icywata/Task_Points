@@ -1,5 +1,4 @@
-Here's the full server.js — copy this and replace the file on GitHub:
-javascriptconst http     = require('http');
+const http     = require('http');
 const fs       = require('fs');
 const path     = require('path');
 const nodemailer = require('nodemailer');
