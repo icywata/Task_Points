@@ -1,14 +1,13 @@
 {
   "name": "task-points-tracker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Shared task points tracker",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "pg": "^8.11.0",
-    "nodemailer": "^6.9.0"
+    "pg": "^8.11.0"
   },
   "engines": {
     "node": ">=18"
