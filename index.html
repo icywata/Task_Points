@@ -120,6 +120,22 @@
   .section-badge.monthly { background:#2a1f3d; color:#a98fe0; }
   .section-badge.daily   { background:var(--accent-bg); color:var(--accent-light); }
   .section-badge.repeat  { background:#1d2a2a; color:#6abfbf; }
+  .section-badge.assigned { background:#2d200a; color:#e8a84a; }
+
+  /* Assigned urgency */
+  .task-row.assigned-row { border-left:2px solid #c47c1a; }
+  .task-row.assigned-row.expiring-soon { border-left-color:#e05050; }
+  .expiry-tag { font-size:10px; font-weight:600; padding:2px 7px; border-radius:20px; white-space:nowrap; }
+  .expiry-tag.ok      { background:#2d200a; color:#e8a84a; }
+  .expiry-tag.soon    { background:#2d1010; color:#e06060; }
+  .expiry-tag.expired { background:#2d1010; color:#888; text-decoration:line-through; }
+
+  /* Date input */
+  .add-form input[type="date"] { width:100%; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text-primary); font-family:inherit; font-size:14px; padding:9px 12px; outline:none; transition:border-color .15s; color-scheme:dark; }
+  .add-form input[type="date"]:focus { border-color:var(--accent-mid); }
+  .assigned-fields { display:none; flex-direction:column; gap:10px; }
+  .assigned-fields.visible { display:flex; }
+  .type-btn.active-assigned { background:#2d200a; border-color:#c47c1a; color:#e8a84a; }
 
   /* Task rows */
   .tasks-list { display:flex; flex-direction:column; gap:8px; margin-bottom:1.5rem; }
@@ -301,6 +317,9 @@
       </div>
     </div>
 
+    <div class="section-head">Assigned tasks <span class="section-badge assigned">With deadline</span></div>
+    <div class="tasks-list" id="assignedList"></div>
+
     <div class="section-head">Monthly tasks <span class="section-badge monthly">This month</span></div>
     <div class="tasks-list" id="monthlyList"></div>
 
@@ -316,10 +335,14 @@
           <button class="type-btn active-daily" id="btn-daily"   onclick="setType('daily')">Daily</button>
           <button class="type-btn"              id="btn-repeat"  onclick="setType('repeat')">↻ Repeats daily</button>
           <button class="type-btn"              id="btn-monthly" onclick="setType('monthly')">Monthly</button>
+          <button class="type-btn"              id="btn-assigned" onclick="setType('assigned')">⚑ Assigned</button>
         </div>
       </div>
       <div><label for="taskName">Task name</label><input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80" /></div>
       <div><label for="taskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="taskDesc" rows="2" placeholder="Any notes or details…" maxlength="200"></textarea></div>
+      <div class="assigned-fields" id="assignedFields">
+        <div><label for="taskExpiry">Expires on</label><input type="date" id="taskExpiry" /></div>
+      </div>
       <div class="form-row">
         <div><label for="taskPts">Point value</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999" /></div>
         <div style="display:flex;flex-direction:column;justify-content:flex-end">
@@ -481,6 +504,7 @@ function ps() {
   if (!p.repeatingDeleted) p.repeatingDeleted={};
   if (!p.shop)             p.shop=[];
   if (!p.inventory)        p.inventory=[];
+  if (!p.assigned)         p.assigned=[];
   return p;
 }
 
@@ -500,6 +524,7 @@ function getTotalEarned() {
   Object.values(p.days).forEach(day=>{ total+=(day.tasks||[]).reduce((s,t)=>s+(t.done?t.pts:0),0); });
   Object.entries(p.monthlyDone).forEach(([mk,done])=>{ (p.monthly[mk]||[]).forEach(t=>{ if(done[t.id]) total+=t.pts; }); });
   Object.entries(p.repeatingDone).forEach(([dk,done])=>{ getRepeatingForDay(dk).forEach(t=>{ if(done[t.id]) total+=t.pts; }); });
+  (p.assigned||[]).forEach(t=>{ if(t.completedOn) total+=t.pts; });
   return total;
 }
 function getTotalSpent() {
@@ -515,6 +540,8 @@ function getDayPoints(key) {
   (p.monthly[mk]||[]).forEach(t=>{ if(mdone[t.id]===key) pts+=t.pts; });
   const rdone=p.repeatingDone[key]||{};
   getRepeatingForDay(key).forEach(t=>{ if(rdone[t.id]) pts+=t.pts; });
+  // assigned tasks completed on this specific day
+  (p.assigned||[]).forEach(t=>{ if(t.completedOn===key) pts+=t.pts; });
   return pts;
 }
 
@@ -548,7 +575,10 @@ function shiftDay(delta) { const d=dateFromKey(selectedDate); d.setDate(d.getDat
 function goToday() { selectedDate=getTodayKey(); render(); }
 function setType(t) {
   addType=t;
-  ['daily','repeat','monthly'].forEach(x=>{ document.getElementById('btn-'+x).className='type-btn'+(x===t?' active-'+x:''); });
+  ['daily','repeat','monthly','assigned'].forEach(x=>{
+    document.getElementById('btn-'+x).className='type-btn'+(x===t?' active-'+x:'');
+  });
+  document.getElementById('assignedFields').className='assigned-fields'+(t==='assigned'?' visible':'');
 }
 
 // ── SVG helpers ──────────────────────────────────────────────────
@@ -576,6 +606,81 @@ function makeTaskRow(opts) {
 }
 
 // ── Tracker render ───────────────────────────────────────────────
+// ── Assigned render ──────────────────────────────────────────────
+function renderAssigned() {
+  const list = document.getElementById('assignedList');
+  list.innerHTML = '';
+  const today = getTodayKey();
+  const p = ps();
+
+  // Show tasks that: started on or before selectedDate AND expire on or after selectedDate (or are already completed)
+  const visible = (p.assigned||[]).filter(t => {
+    if (t.completedOn) return t.completedOn === selectedDate; // completed tasks only show on the day they were done
+    return t.expiresOn >= selectedDate; // not yet completed: show until expired
+  });
+
+  // Also show expired-but-uncompleted as a record if viewing a past date when they were active
+  const expiredUncompleted = (p.assigned||[]).filter(t => {
+    if (t.completedOn) return false;
+    return t.expiresOn < selectedDate && t.assignedOn <= selectedDate;
+  });
+
+  const all = [...visible, ...expiredUncompleted];
+
+  if (!all.length) {
+    list.innerHTML = `<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>No assigned tasks</div>`;
+    return;
+  }
+
+  all.forEach(t => {
+    const isExpired = !t.completedOn && t.expiresOn < today;
+    const isDone = !!t.completedOn;
+
+    // Calculate days until expiry
+    let expiryLabel = '';
+    let expiryCls = 'ok';
+    if (!isDone) {
+      const exp = dateFromKey(t.expiresOn);
+      const now = dateFromKey(today);
+      const diffDays = Math.round((exp - now) / 86400000);
+      if (isExpired) { expiryLabel = 'Expired'; expiryCls = 'expired'; }
+      else if (diffDays === 0) { expiryLabel = 'Expires today'; expiryCls = 'soon'; }
+      else if (diffDays === 1) { expiryLabel = 'Expires tomorrow'; expiryCls = 'soon'; }
+      else if (diffDays <= 3) { expiryLabel = `${diffDays}d left`; expiryCls = 'soon'; }
+      else { expiryLabel = `Due ${new Date(exp.getTime() + 86400000*0).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`; expiryCls = 'ok'; }
+    }
+
+    const expiryTag = !isDone ? `<span class="expiry-tag ${expiryCls}">${expiryLabel}</span>` : '';
+    const rowExtra = 'assigned-row' + (expiryCls==='soon' ? ' expiring-soon' : '');
+
+    const row = makeTaskRow({
+      done: isDone,
+      name: t.name,
+      desc: t.desc,
+      pts: t.pts,
+      extraClass: rowExtra,
+      extraButtons: expiryTag,
+      onCheck: () => {
+        if (isDone) {
+          // uncomplete
+          const idx = p.assigned.findIndex(x=>x.id===t.id);
+          if (idx>=0) p.assigned[idx].completedOn = null;
+        } else if (!isExpired) {
+          const idx = p.assigned.findIndex(x=>x.id===t.id);
+          if (idx>=0) p.assigned[idx].completedOn = selectedDate;
+        }
+        scheduleSave(); render();
+      },
+      onDelete: () => {
+        const idx = p.assigned.findIndex(x=>x.id===t.id);
+        if (idx>=0) p.assigned.splice(idx,1);
+        scheduleSave(); render();
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
 function renderMonthly() {
   const list=document.getElementById('monthlyList');
   list.innerHTML='';
@@ -644,7 +749,7 @@ function renderTotal() {
   document.getElementById('totalLabel').textContent=selectedDate===getTodayKey()?'Points earned today':'Points earned';
 }
 
-function render() { renderWeek();renderMonthly();renderDaily();renderTotal(); }
+function render() { renderWeek(); renderAssigned(); renderMonthly(); renderDaily(); renderTotal(); }
 
 // ── Shop render ──────────────────────────────────────────────────
 function renderShop() {
@@ -731,6 +836,12 @@ function addTask() {
   ps();
   if(addType==='monthly'){const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts});}
   else if(addType==='repeat'){ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate});}
+  else if(addType==='assigned'){
+    const expiry=document.getElementById('taskExpiry').value;
+    if(!expiry){document.getElementById('taskExpiry').focus();return;}
+    ps().assigned.push({id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null});
+    document.getElementById('taskExpiry').value='';
+  }
   else{getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false});}
   document.getElementById('taskName').value='';
   document.getElementById('taskDesc').value='';
