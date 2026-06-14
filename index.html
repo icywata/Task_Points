@@ -259,20 +259,32 @@
 
   /* ── Photo proof ── */
   .proof-required-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2d1a2d;color:#c084e0;padding:2px 8px;border-radius:20px;white-space:nowrap}
-  .proof-upload-area{border:1.5px dashed var(--border);border-radius:var(--radius-lg);padding:1.25rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:8px}
-  .proof-upload-area:hover{border-color:var(--accent-mid);background:var(--accent-bg)}
-  .proof-upload-area input{display:none}
-  .proof-upload-label{font-size:13px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
-  .proof-upload-label svg{width:28px;height:28px;color:var(--text-muted);opacity:.5}
-  .proof-preview{width:100%;max-height:200px;object-fit:cover;border-radius:var(--radius-md);margin-top:8px;display:none}
-  .proof-btn{height:30px;padding:0 12px;border:1px solid #7c3aad;background:#2d1a2d;color:#c084e0;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
-  .proof-btn:hover{background:#3d1f3d;border-color:#c084e0}
-  .proof-view-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:1rem;gap:1rem}
+  .proof-awaiting-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2a2010;color:#e8a84a;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .proof-rejected-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2d1010;color:#e06060;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .proof-approved-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#102d10;color:#60bf60;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .proof-thumbnail{width:44px;height:44px;border-radius:var(--radius-md);object-fit:cover;cursor:pointer;border:1.5px solid var(--border);flex-shrink:0;transition:border-color .15s}
+  .proof-thumbnail:hover{border-color:var(--accent-mid)}
+  .proof-upload-btn{height:28px;padding:0 10px;background:transparent;color:#c084e0;border:1px solid #7c3aad;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .proof-upload-btn:hover{background:#2d1a2d}
+  .proof-upload-btn.rejected{color:#e06060;border-color:#a02020}
+  .proof-upload-btn.rejected:hover{background:#2d1010}
+  .proof-review-btn{height:28px;padding:0 10px;background:transparent;color:#e8a84a;border:1px solid #a07020;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .proof-review-btn:hover{background:#2a2010}
+  .task-row.proof-rejected{border-left:2px solid #e05050!important}
+  .task-row.proof-pending{border-left:2px solid #e8a84a!important}
+  /* Proof modal */
+  .proof-view-modal{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:1.5rem;gap:1.25rem}
   .proof-view-modal.hidden{display:none}
-  .proof-view-modal img{max-width:100%;max-height:70vh;border-radius:var(--radius-lg);object-fit:contain}
-  .proof-modal-actions{display:flex;gap:10px}
-  .proof-save-btn{height:40px;padding:0 20px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer}
-  .proof-delete-btn{height:40px;padding:0 20px;background:transparent;color:#f09595;border:1px solid #f09595;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer}
+  .proof-view-modal img{max-width:100%;max-height:65vh;border-radius:var(--radius-lg);object-fit:contain}
+  .proof-modal-title{font-size:14px;font-weight:600;color:#fff;text-align:center}
+  .proof-modal-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .proof-approve-btn{height:42px;padding:0 24px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}
+  .proof-approve-btn:hover{background:var(--accent-deep)}
+  .proof-reject-btn{height:42px;padding:0 24px;background:transparent;color:#e06060;border:1px solid #e06060;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+  .proof-reject-btn:hover{background:#2d1010}
+  .proof-save-check{display:flex;align-items:center;gap:8px;color:#aaa;font-size:13px;cursor:pointer}
+  .proof-save-check input{width:16px;height:16px;accent-color:var(--accent-mid)}
+  .proof-modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1}
   .proof-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
   .proof-toggle-label{font-size:13px;color:var(--text-primary);font-weight:500}
 
@@ -355,12 +367,17 @@
 </head>
 <body class="theme-default">
 
-<!-- Photo proof view modal -->
+<!-- Photo proof review modal -->
 <div class="proof-view-modal hidden" id="proofModal">
+  <button class="proof-modal-close" onclick="closeProofModal()">✕</button>
+  <div class="proof-modal-title" id="proofModalTitle">Review photo proof</div>
   <img id="proofModalImg" src="" alt="Proof photo"/>
-  <div class="proof-modal-actions">
-    <button class="proof-save-btn" onclick="decideProof('save')">Save photo</button>
-    <button class="proof-delete-btn" onclick="decideProof('delete')">Delete</button>
+  <label class="proof-save-check">
+    <input type="checkbox" id="proofSaveCheck" checked/>
+    Save this photo
+  </label>
+  <div class="proof-modal-actions" id="proofModalActions">
+    <!-- populated dynamically based on role (reviewer vs uploader) -->
   </div>
 </div>
 
@@ -853,57 +870,108 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 function makeTaskRow(opts) {
   const row = document.createElement('div');
-  row.className = 'task-row'+(opts.done?' done':'')+(opts.extraClass?' '+opts.extraClass:'');
-  const checkDisabled = opts.checkDisabled || (opts.requireProof && !opts.done && !opts.proofKey);
+  const proof = opts.proof || null;
+  const proofState = proof?.state || null; // null | 'pending' | 'approved' | 'rejected'
+
+  // Determine extra class from proof state
+  let proofClass = '';
+  if (proofState === 'pending') proofClass = ' proof-pending';
+  if (proofState === 'rejected') proofClass = ' proof-rejected';
+
+  row.className = 'task-row'+(opts.done?' done':'')+(opts.extraClass?' '+opts.extraClass:'')+proofClass;
+
+  // Build proof UI elements
+  let proofBadge = '';
+  let proofBtn = '';
+  let thumbnailHtml = '';
+
+  if (opts.requireProof && !opts.done) {
+    if (!proofState || proofState === 'rejected') {
+      // Needs upload (or re-upload after rejection)
+      proofBadge = proofState === 'rejected'
+        ? `<span class="proof-rejected-badge">Photo rejected</span>`
+        : `<span class="proof-required-badge">📷 Proof required</span>`;
+      if (opts.canUpload) {
+        proofBtn = `<button class="proof-upload-btn${proofState==='rejected'?' rejected':''}">${proofState==='rejected'?'Re-upload':'Upload proof'}</button>`;
+      }
+    } else if (proofState === 'pending') {
+      proofBadge = `<span class="proof-awaiting-badge">⏳ Awaiting review</span>`;
+      if (opts.isReviewer && proof.key) {
+        proofBtn = `<button class="proof-review-btn">Review proof</button>`;
+      }
+    } else if (proofState === 'approved') {
+      proofBadge = `<span class="proof-approved-badge">✓ Proof approved</span>`;
+    }
+  }
+
+  // Thumbnail if there's a photo key and user can view
+  if (proof?.key && (proofState === 'pending') && (opts.canUpload || opts.isReviewer)) {
+    thumbnailHtml = `<img class="proof-thumbnail" src="/api/proof/thumb?key=${encodeURIComponent(proof.key)}" alt="proof" onerror="this.style.display='none'"/>`;
+  }
+
+  // Can complete task?
+  const canComplete = !opts.checkDisabled && (!opts.requireProof || opts.done || proofState === 'approved');
+
   row.innerHTML = `
-    <div class="task-check${checkDisabled?' disabled':''}">${checkSVG()}</div>
+    <div class="task-check${!canComplete?' disabled':''}">${checkSVG()}</div>
     <div class="task-body">
       <div class="task-name">${esc(opts.name)}</div>
       ${opts.desc?`<div class="task-desc">${esc(opts.desc)}</div>`:''}
     </div>
     <div class="task-right">
+      ${thumbnailHtml}
       <span class="pts-badge">${opts.pts} pts</span>
-      ${opts.requireProof && !opts.done ? `<span class="proof-required-badge">📷 Proof</span>` : ''}
-      ${opts.proofKey && opts.isViewer ? `<button class="proof-btn" data-key="${opts.proofKey}">View proof</button>` : ''}
+      ${proofBadge}
+      ${proofBtn}
       ${opts.extraButtons||''}
       ${opts.showDelete!==false?`<button class="task-delete">${trashSVG()}</button>`:''}
     </div>`;
-  // Check button — if proof required and not done, show upload instead
+
+  // Wire check button
   const checkEl = row.querySelector('.task-check');
-  if (!opts.checkDisabled) {
-    if (opts.requireProof && !opts.done && !opts.proofKey) {
-      // Need to upload proof first — clicking opens file picker
-      checkEl.title = 'Upload photo proof to complete';
-      checkEl.onclick = () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.capture = 'environment';
-        input.onchange = async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          checkEl.style.opacity = '0.5';
-          try {
-            const viewerIds = getProofViewerIds(viewingProfile);
-            const key = await uploadProof(file, opts.taskId, opts.taskType, viewerIds);
-            opts.proofKey = key;
-            opts.onCheck(key); // pass key to completion handler
-          } catch(err) {
-            console.error('Upload failed:', err);
-            alert('Photo upload failed: ' + err.message);
-          }
-          checkEl.style.opacity = '';
-        };
-        input.click();
-      };
-    } else {
-      checkEl.onclick = () => opts.onCheck();
-    }
+  if (canComplete) {
+    checkEl.onclick = () => {
+      if (opts.requireProof && !opts.done && proofState !== 'approved') {
+        alert('Please upload and get photo proof approved first.');
+        return;
+      }
+      opts.onCheck();
+    };
+  } else if (opts.requireProof && !opts.done && !proofState) {
+    checkEl.title = 'Upload photo proof first';
   }
+
+  // Wire upload button
+  const uploadBtn = row.querySelector('.proof-upload-btn');
+  if (uploadBtn) {
+    uploadBtn.onclick = () => triggerFileUpload(opts.taskRef, opts.taskType, (key) => {
+      scheduleSave(); renderTracker();
+    });
+  }
+
+  // Wire review button
+  const reviewBtn = row.querySelector('.proof-review-btn');
+  if (reviewBtn) {
+    reviewBtn.onclick = () => openProofModal(
+      proof.key, true, opts.taskRef,
+      () => { opts.onCheck(); }, // approve = complete task
+      () => {} // reject = just re-render
+    );
+  }
+
+  // Wire thumbnail click to open modal
+  const thumb = row.querySelector('.proof-thumbnail');
+  if (thumb && proof?.key) {
+    thumb.onclick = () => openProofModal(
+      proof.key,
+      opts.isReviewer,
+      opts.taskRef,
+      () => { opts.onCheck(); },
+      () => {}
+    );
+  }
+
   if (opts.showDelete!==false) row.querySelector('.task-delete').onclick = opts.onDelete;
-  // View proof button
-  const viewBtn = row.querySelector('.proof-btn');
-  if (viewBtn) viewBtn.onclick = () => viewProof(viewBtn.dataset.key);
   return row;
 }
 
@@ -972,16 +1040,15 @@ function renderAssigned() {
     const rowExtra='assigned-row'+(expiryCls==='soon'?' expiring-soon':'');
     // Own profile = can check off. Partner's assigned tasks viewed by partner = can check. Viewing partner's profile = read only
     const canCheck = isOwnProfile() && !isExpired;
-    const proofs = state._proofs || {};
-    const taskProof = Object.values(proofs).find(p=>p.taskId===t.id && p.viewerIds.includes(currentUser.userId));
+    const isReviewer = !isOwnProfile() || !currentUser.partnerId;
     const row=makeTaskRow({
       done:isDone, name:t.name, desc:t.desc, pts:t.pts, extraClass:rowExtra,
       extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:isOwnProfile(),
-      requireProof:t.requireProof, taskId:t.id, taskType:'assigned',
-      proofKey: taskProof?.key, isViewer: !!taskProof,
-      onCheck:(proofKey)=>{
+      requireProof:t.requireProof, taskRef:t, taskType:'assigned',
+      proof:t.proof, canUpload:isOwnProfile(), isReviewer,
+      onCheck:()=>{
         if (isDone){const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=null;}
-        else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0){p.assigned[idx].completedOn=selectedDate;if(proofKey)p.assigned[idx].proofKey=proofKey;}}
+        else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=selectedDate;}
         scheduleSave();renderTracker();
       },
       onDelete:()=>{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned.splice(idx,1);scheduleSave();renderTracker();}
@@ -1028,20 +1095,15 @@ function renderDaily() {
   const tasks=getDayTasks(selectedDate);
   if(!tasks.length&&!repeating.length){list.innerHTML=`<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1"/></svg>No tasks for this day${isOwnProfile()?' — add one below':''}</div>`;return;}
   tasks.forEach((t,i)=>{
-    const canCheck=isOwnProfile();
-    const proofs = state._proofs || {};
-    const taskProof = Object.values(proofs).find(p=>p.taskId===t.id && p.viewerIds.includes(currentUser.userId));
+    const canCheck = isOwnProfile();
+    const isReviewer = !isOwnProfile() || !currentUser.partnerId; // partner reviews, or self if no partner
     const row=makeTaskRow({
       done:t.done, name:t.name, desc:t.desc, pts:t.pts,
       checkDisabled:!canCheck, showDelete:isOwnProfile(),
-      requireProof:t.requireProof, taskId:t.id, taskType:'daily',
-      proofKey: taskProof?.key, isViewer: !!taskProof,
-      onCheck:(proofKey)=>{
-        getDayTasks(selectedDate)[i].done^=true;
-        if (proofKey) getDayTasks(selectedDate)[i].proofKey = proofKey;
-        scheduleSave();renderTracker();
-      },
-      onDelete:()=>{ps().days[selectedDate].tasks.splice(i,1);scheduleSave();renderTracker();}
+      requireProof:t.requireProof, taskRef:t, taskType:'daily',
+      proof:t.proof, canUpload:isOwnProfile(), isReviewer,
+      onCheck:()=>{ getDayTasks(selectedDate)[i].done^=true; scheduleSave();renderTracker(); },
+      onDelete:()=>{ ps().days[selectedDate].tasks.splice(i,1); scheduleSave();renderTracker(); }
     });
     list.appendChild(row);
   });
@@ -1612,10 +1674,28 @@ function renderIconPicker(currentIconId) {
   });
 }
 
-// ── Photo proof ────────────────────────────────────────────────
-let currentProofKey = null; // key being viewed in modal
+// ── Photo proof state machine ───────────────────────────────────
+// Proof states: null | 'pending' | 'approved' | 'rejected'
+// Stored on the task itself: task.proof = { key, state, uploadedAt, reviewedAt, rejectionNote }
+
+let proofModalContext = null; // { key, taskRef, isReviewer, onApprove, onReject }
+
+const DAILY_UPLOAD_LIMIT = 10;
+
+function getUploadCountToday() {
+  const proofs = state._proofs || {};
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  return Object.values(proofs).filter(p =>
+    p.uploadedBy === currentUser.userId && p.uploadedAt >= todayStart.getTime()
+  ).length;
+}
 
 async function uploadProof(file, taskId, taskType, viewerIds) {
+  // Throttle check
+  const count = getUploadCountToday();
+  if (count >= DAILY_UPLOAD_LIMIT) {
+    throw new Error(`Daily upload limit reached (${DAILY_UPLOAD_LIMIT}/day). Try again tomorrow.`);
+  }
   const res = await fetch('/api/proof/upload', {
     method: 'POST',
     headers: {
@@ -1631,41 +1711,108 @@ async function uploadProof(file, taskId, taskType, viewerIds) {
   return data.key;
 }
 
-async function viewProof(key) {
+async function openProofForUpload(file, taskRef, taskType, onUploaded) {
+  const viewerIds = getProofViewerIds(viewingProfile);
+  try {
+    const key = await uploadProof(file, taskRef.id, taskType, viewerIds);
+    // Store proof state on task
+    taskRef.proof = { key, state: 'pending', uploadedAt: Date.now() };
+    onUploaded(key);
+  } catch(err) {
+    console.error('Upload failed:', err);
+    alert('Photo upload failed: ' + err.message);
+  }
+}
+
+async function openProofModal(key, isReviewer, taskRef, onApprove, onReject) {
   const res = await fetch('/api/proof/view', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error);
-  currentProofKey = key;
+  if (!res.ok) { alert('Could not load photo: ' + data.error); return; }
+
+  proofModalContext = { key, taskRef, isReviewer, onApprove, onReject };
   document.getElementById('proofModalImg').src = data.url;
+  document.getElementById('proofModalTitle').textContent = isReviewer ? 'Review photo proof' : 'Your submitted proof';
+
+  const actions = document.getElementById('proofModalActions');
+  if (isReviewer) {
+    actions.innerHTML = `
+      <button class="proof-approve-btn" onclick="approveProof()">✓ Approve & complete</button>
+      <button class="proof-reject-btn" onclick="rejectProof()">✗ Reject</button>`;
+  } else {
+    // Uploader viewing their own pending/rejected proof
+    actions.innerHTML = `<button class="proof-approve-btn" onclick="closeProofModal()" style="background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border)">Close</button>`;
+  }
   document.getElementById('proofModal').classList.remove('hidden');
 }
 
-async function decideProof(action) {
-  if (!currentProofKey) return;
+function closeProofModal() {
+  document.getElementById('proofModal').classList.add('hidden');
+  document.getElementById('proofModalImg').src = '';
+  proofModalContext = null;
+}
+
+async function approveProof() {
+  if (!proofModalContext) return;
+  const { key, taskRef, onApprove } = proofModalContext;
+  const save = document.getElementById('proofSaveCheck').checked;
+  // Update proof state
+  taskRef.proof = { ...taskRef.proof, state: 'approved', reviewedAt: Date.now() };
+  // Decide photo fate
   await fetch('/api/proof/decide', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: currentProofKey, action })
+    body: JSON.stringify({ key, action: save ? 'save' : 'delete' })
   });
-  document.getElementById('proofModal').classList.add('hidden');
-  document.getElementById('proofModalImg').src = '';
-  currentProofKey = null;
+  closeProofModal();
+  onApprove();
+  scheduleSave();
+  renderTracker();
 }
 
-// Get viewer IDs for a task — who should see the proof
+async function rejectProof() {
+  if (!proofModalContext) return;
+  const { key, taskRef, onReject } = proofModalContext;
+  // Delete the rejected photo from R2
+  await fetch('/api/proof/decide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, action: 'delete' })
+  });
+  // Update proof state
+  taskRef.proof = { key: null, state: 'rejected', rejectedAt: Date.now() };
+  // Notify uploader via server
+  await fetch('/api/proof/reject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taskId: taskRef.id, uploaderProfile: viewingProfile })
+  });
+  closeProofModal();
+  if (onReject) onReject();
+  scheduleSave();
+  renderTracker();
+}
+
 function getProofViewerIds(taskOwnerProfile) {
-  // If task is on partner's profile, we (the assigner) see the proof
-  // If task is on own profile, partner sees the proof
-  if (taskOwnerProfile !== currentUser.userId) {
-    return [currentUser.userId]; // assigner sees proof
-  }
-  // Own profile — partner(s) see proof
+  if (taskOwnerProfile !== currentUser.userId) return [currentUser.userId];
   if (currentUser.partnerId) return [currentUser.partnerId];
-  return [];
+  return [currentUser.userId]; // self-review
+}
+
+function triggerFileUpload(taskRef, taskType, onUploaded) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    await openProofForUpload(file, taskRef, taskType, onUploaded);
+  };
+  input.click();
 }
 
 // ── Boot ───────────────────────────────────────────────────────

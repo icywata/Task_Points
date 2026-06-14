@@ -552,6 +552,47 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Proof thumbnail (redirects to signed URL) ──────────────
+  if (req.method === 'GET' && url.startsWith('/api/proof/thumb')) {
+    const userId = await requireAuth(req);
+    if (!userId) { res.writeHead(401); res.end(); return; }
+    const params = new URLSearchParams(req.url.split('?')[1] || '');
+    const key = params.get('key');
+    if (!key || !s3Client) { res.writeHead(404); res.end(); return; }
+    try {
+      const signedUrl = await getSignedViewUrl(key);
+      res.writeHead(302, { 'Location': signedUrl });
+      res.end();
+    } catch(e) { res.writeHead(500); res.end(); }
+    return;
+  }
+
+  // ── Proof rejection notification ───────────────────────────────
+  if (req.method === 'POST' && url === '/api/proof/reject') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { taskId, uploaderProfile } = await parseBody(req);
+      const state = await readData();
+      const uploaderData = state[uploaderProfile] || {};
+      const to = uploaderData.notificationEmail;
+      const firstName = uploaderData.firstName || uploaderData.nickname || 'there';
+      const reviewerData = state[userId] || {};
+      const reviewerName = reviewerData.nickname || reviewerData.firstName || 'Your partner';
+      if (to) {
+        await sendEmail(to, `📷 Photo proof rejected`,
+          `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+            <h2 style="color:#e06060;margin-bottom:1rem">Photo proof rejected</h2>
+            <p style="color:#b8829e;margin-bottom:1rem">Hi ${firstName}, ${reviewerName} has rejected your photo proof for a task.</p>
+            <p style="color:#7a5068;font-size:13px">Please upload a new photo to complete the task.</p>
+          </div>`
+        );
+      }
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   // ── Photo proof upload ─────────────────────────────────────
   if (req.method === 'POST' && url === '/api/proof/upload') {
     const userId = await requireAuth(req);
