@@ -811,6 +811,45 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Admin invite codes page ────────────────────────────────
+  if (req.method === 'GET' && url === '/admin/codes') {
+    res.writeHead(200, {'Content-Type':'text/html'});
+    res.end(`<!DOCTYPE html><html><head><title>KinkPoints — Invite Codes</title>
+    <style>body{font-family:sans-serif;max-width:600px;margin:2rem auto;padding:1rem;background:#1a1118;color:#f0dce8}
+    h1{color:#d4537e}input,button{padding:8px 12px;margin:4px;border-radius:8px;border:1px solid #333;background:#2a1c27;color:#f0dce8;font-size:14px}
+    button{background:#d4537e;color:#fff;border:none;cursor:pointer}table{width:100%;border-collapse:collapse;margin-top:1rem}
+    td,th{padding:8px;border:1px solid #333;font-size:13px}th{background:#2a1c27;color:#d4537e}.err{color:#e06060}.ok{color:#6abf6a}</style>
+    </head><body>
+    <h1>Invite Codes</h1>
+    <div><input id="key" placeholder="Admin key" type="password"/>
+    <input id="code" placeholder="Code (e.g. DISCORD2024)" style="text-transform:uppercase"/>
+    <input id="label" placeholder="Label"/>
+    <input id="cap" placeholder="Capacity" type="number" value="200"/>
+    <button onclick="create()">Create Code</button></div>
+    <div id="msg"></div>
+    <div id="list"></div>
+    <script>
+    async function create(){
+      const r=await fetch('/api/admin/invite-code',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({key:document.getElementById('key').value,code:document.getElementById('code').value,
+          label:document.getElementById('label').value,capacity:parseInt(document.getElementById('cap').value)||200})});
+      const d=await r.json();
+      document.getElementById('msg').innerHTML=r.ok?'<span class="ok">✓ Created: '+d.code+'</span>':'<span class="err">'+d.error+'</span>';
+      if(r.ok)load();
+    }
+    async function load(){
+      const key=document.getElementById('key').value;
+      const r=await fetch('/api/admin/invite-codes',{headers:{'x-admin-key':key}});
+      if(!r.ok){document.getElementById('list').innerHTML='<p class="err">Wrong key</p>';return;}
+      const codes=await r.json();
+      document.getElementById('list').innerHTML='<table><tr><th>Code</th><th>Label</th><th>Used</th><th>Capacity</th><th>Active</th></tr>'+
+        codes.map(c=>'<tr><td><b>'+c.code+'</b></td><td>'+c.label+'</td><td>'+c.used+'</td><td>'+c.capacity+'</td><td>'+(c.active?'✅':'❌')+'</td></tr>').join('')+'</table>';
+    }
+    document.getElementById('key').addEventListener('change',load);
+    </script></body></html>`);
+    return;
+  }
+
   // ── Admin: create invite code ──────────────────────────────
   if (req.method === 'POST' && url === '/api/admin/invite-code') {
     try {
@@ -999,18 +1038,6 @@ const server = http.createServer(async (req, res) => {
             AND (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [userId, partnerId]);
 
-        // Debug
-        const debug = await db.query(`
-          SELECT tc.task_id, t.points, t.visible_to, tc.completed_on
-          FROM task_completions tc
-          JOIN tasks t ON t.id = tc.task_id
-          WHERE tc.completed_by = $1
-          LIMIT 10
-        `, [userId]);
-        console.log(`Balances debug for ${userId} with ${partnerId}:`);
-        console.log(`  earned total: ${earned.rows[0].total}`);
-        console.log(`  sample completions:`, JSON.stringify(debug.rows));
-
         // Points spent on items from this partner's shop
         const spent = await db.query(`
           SELECT COALESCE(SUM(i.cost), 0) as total
@@ -1021,8 +1048,7 @@ const server = http.createServer(async (req, res) => {
         balances[partnerId] = {
           earned: parseInt(earned.rows[0].total),
           spent: parseInt(spent.rows[0].total),
-          balance: parseInt(earned.rows[0].total) - parseInt(spent.rows[0].total),
-          partnershipStart
+          balance: parseInt(earned.rows[0].total) - parseInt(spent.rows[0].total)
         };
       }
       json(res, balances);
