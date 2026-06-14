@@ -1460,7 +1460,7 @@ function makeTaskRow(opts) {
 
   if (opts.showDelete!==false) row.querySelector('.task-delete:last-child').onclick = opts.onDelete;
   const editBtn = row.querySelector('.task-edit-action');
-  if (editBtn) editBtn.onclick = () => openTaskEdit(opts.taskRef || {id:opts.taskId, name:opts.name, desc:opts.desc, pts:opts.pts, visibleTo:opts.visibleTo}, canEditContent, canEditVisibility);
+  if (editBtn) editBtn.onclick = () => openTaskEdit(opts.taskRef, canEditContent, canEditVisibility);
   return row;
 }
 
@@ -1567,7 +1567,7 @@ function renderMonthly() {
   tasks.forEach(t=>{
     const isDone=!!done[t.id];
     const canCheck=isOwnProfile();
-    const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:isOwnProfile(), visibleTo:t.visibleTo,
+    const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:isOwnProfile(),taskRef:t,visibleTo:t.visibleTo,
       onCheck:()=>{if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};ps().monthlyDone[mk][t.id]=isDone?null:selectedDate;scheduleSave();renderTracker();},
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1583,7 +1583,7 @@ function renderDaily() {
     const isDone=!!rdone[t.id];
     const canCheck=isOwnProfile();
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'repeat-row',
-      checkDisabled:!canCheck,showDelete:isOwnProfile(), visibleTo:t.visibleTo,
+      checkDisabled:!canCheck,showDelete:isOwnProfile(),taskRef:t,visibleTo:t.visibleTo,
       extraButtons:isOwnProfile()?`<button class="task-delete-future">Del future</button>`:'',
       onCheck:()=>{if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};ps().repeatingDone[selectedDate][t.id]=!isDone;scheduleSave();renderTracker();},
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }

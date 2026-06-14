@@ -1325,17 +1325,27 @@ const server = http.createServer(async (req, res) => {
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       const { taskId, name, desc, pts, visibleTo, updateVisibility } = await parseBody(req);
+      console.log(`Task update: ${taskId}, updateVisibility: ${updateVisibility}, userId: ${userId}, visibleTo: ${visibleTo}`);
       if (updateVisibility) {
-        // Only the profile owner can change visibility
-        await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
+        const r = await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
           [visibleTo||null, taskId, userId]);
+        console.log(`Visibility updated, rows: ${r.rowCount}`);
+        if (r.rowCount === 0) {
+          // Maybe column doesn't exist yet — try adding it
+          try { await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`); } catch(e2) {}
+          await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
+            [visibleTo||null, taskId, userId]);
+        }
       } else {
-        // Only the task creator can edit content
-        await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3 WHERE id=$4 AND created_by=$5`,
+        const r = await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3 WHERE id=$4 AND created_by=$5`,
           [name, desc||null, pts, taskId, userId]);
+        console.log(`Content updated, rows: ${r.rowCount}`);
       }
       json(res, { ok: true });
-    } catch(e) { json(res, { error: e.message }, 500); }
+    } catch(e) {
+      console.error('Task update error:', e.message);
+      json(res, { error: e.message }, 500);
+    }
     return;
   }
 
