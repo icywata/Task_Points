@@ -1630,16 +1630,23 @@ function renderShop() {
           </div>
           <div class="shop-item-right">
             <span class="shop-cost">${item.cost} pts</span>
-            <button class="shop-delete" title="Edit" style="color:var(--text-muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="shop-delete">${trashSVG()}</button>
+            <button class="shop-delete shop-edit-btn" data-id="${item.id}" title="Edit" style="color:var(--text-muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="shop-delete shop-del-btn" data-id="${item.id}">${trashSVG()}</button>
           </div>`;
-        const btns = el.querySelectorAll('.shop-delete');
-        btns[0].onclick = () => openRewardEdit(item);
-        btns[1].onclick = () => {
-          ps(currentUser.userId).shop = ps(currentUser.userId).shop.filter(x=>x.id!==item.id);
+        grid.appendChild(el);
+      });
+      // Wire buttons after all items added — avoids innerHTML wiping listeners
+      grid.querySelectorAll('.shop-edit-btn').forEach(btn => {
+        btn.onclick = () => {
+          const it = myShop.find(i => i.id === btn.dataset.id);
+          if (it) openRewardEdit(it);
+        };
+      });
+      grid.querySelectorAll('.shop-del-btn').forEach(btn => {
+        btn.onclick = () => {
+          ps(currentUser.userId).shop = ps(currentUser.userId).shop.filter(x => x.id !== btn.dataset.id);
           scheduleSave(); renderShop();
         };
-        grid.appendChild(el);
       });
     }
     content.appendChild(grid);
