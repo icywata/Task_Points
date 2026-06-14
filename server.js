@@ -117,6 +117,8 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS used_invite_code TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_invite_token TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_test_user BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE inventory ADD COLUMN IF NOT EXISTS is_solo BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS is_solo BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS visible_to TEXT`,
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`,
   ];
@@ -797,61 +799,104 @@ const server = http.createServer(async (req, res) => {
   // ── Admin test users page ──────────────────────────────────
   if (req.method === 'GET' && url === '/admin/users') {
     res.writeHead(200, {'Content-Type':'text/html'});
-    res.end(`<!DOCTYPE html><html><head><title>KinkPoints — Test Users</title>
-    <style>body{font-family:sans-serif;max-width:700px;margin:2rem auto;padding:1rem;background:#1a1118;color:#f0dce8}
-    h1,h2{color:#d4537e}input,select,button{padding:8px 12px;margin:4px;border-radius:8px;border:1px solid #333;background:#2a1c27;color:#f0dce8;font-size:14px}
-    button{background:#d4537e;color:#fff;border:none;cursor:pointer}button.del{background:#5a2020}
-    table{width:100%;border-collapse:collapse;margin-top:1rem}td,th{padding:8px;border:1px solid #333;font-size:13px}
-    th{background:#2a1c27;color:#d4537e}.ok{color:#6abf6a}.err{color:#e06060}hr{border-color:#333;margin:1.5rem 0}</style>
-    </head><body>
-    <h1>Test Users</h1>
-    <div><input id="key" placeholder="Admin key" type="password" style="margin-bottom:12px"/><button onclick="load()">Load</button></div>
-    <hr/>
-    <h2>Create test user</h2>
-    <div>
-      <input id="uUsername" placeholder="username" maxlength="30"/>
-      <input id="uEmail" placeholder="email@test.com"/>
-      <input id="uPassword" placeholder="password" type="password"/>
-      <input id="uNickname" placeholder="nickname"/>
-      <select id="uRole">
-        <option>Dominant</option><option>Submissive</option><option>Switch</option>
-        <option>Daddy</option><option>Babygirl</option><option>Master</option><option>Pet</option>
-      </select>
-      <button onclick="createUser()">Create</button>
-    </div>
-    <div id="createMsg"></div>
-    <hr/>
-    <h2>Test users</h2>
-    <div id="userList"></div>
-    <script>
-    async function load() {
-      const r = await fetch('/api/admin/test-users', {headers:{'x-admin-key':document.getElementById('key').value}});
-      if (!r.ok) { document.getElementById('userList').innerHTML='<p class="err">Wrong key</p>'; return; }
-      const users = await r.json();
-      if (!users.length) { document.getElementById('userList').innerHTML='<p style="color:#888">No test users yet</p>'; return; }
-      document.getElementById('userList').innerHTML = '<table><tr><th>Username</th><th>Email</th><th>Nickname</th><th>Role</th><th>Connect Code</th><th></th></tr>' +
-        users.map(u => '<tr><td>@'+u.username+'</td><td>'+u.email+'</td><td>'+u.nickname+'</td><td>'+u.role+'</td><td>'+u.connect_code+'</td><td><button class="del" onclick="deleteUser(\''+u.id+'\')">Delete</button></td></tr>').join('') + '</table>';
-    }
-    async function createUser() {
-      const msg = document.getElementById('createMsg');
-      const body = { key: document.getElementById('key').value,
-        username: document.getElementById('uUsername').value.trim().toLowerCase(),
-        email: document.getElementById('uEmail').value.trim(),
-        password: document.getElementById('uPassword').value,
-        nickname: document.getElementById('uNickname').value.trim(),
-        role: document.getElementById('uRole').value };
-      const r = await fetch('/api/admin/create-test-user', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      const d = await r.json();
-      msg.innerHTML = r.ok ? '<span class="ok">✓ Created @'+d.username+' (connect code: '+d.connectCode+')</span>' : '<span class="err">'+d.error+'</span>';
-      if (r.ok) { load(); document.getElementById('uUsername').value=''; document.getElementById('uEmail').value=''; document.getElementById('uNickname').value=''; }
-    }
-    async function deleteUser(id) {
-      if (!confirm('Delete this test user and all their data?')) return;
-      const r = await fetch('/api/admin/delete-test-user', {method:'POST',headers:{'Content-Type':'application/json','x-admin-key':document.getElementById('key').value},body:JSON.stringify({id})});
-      const d = await r.json();
-      if (r.ok) load(); else alert(d.error);
-    }
-    </script></body></html>`);
+    res.end(`<!DOCTYPE html>
+<html><head><title>KinkPoints — Test Users</title>
+<style>
+body{font-family:sans-serif;max-width:700px;margin:2rem auto;padding:1rem;background:#1a1118;color:#f0dce8}
+h1,h2{color:#d4537e}
+input,select{padding:8px 12px;margin:4px 4px 4px 0;border-radius:8px;border:1px solid #444;background:#2a1c27;color:#f0dce8;font-size:14px}
+button{padding:8px 16px;margin:4px;border-radius:8px;border:none;background:#d4537e;color:#fff;font-size:14px;cursor:pointer}
+button.del{background:#7a2020}
+button.sec{background:#2a1c27;border:1px solid #444;color:#f0dce8}
+table{width:100%;border-collapse:collapse;margin-top:1rem}
+td,th{padding:8px 10px;border:1px solid #333;font-size:13px;text-align:left}
+th{background:#2a1c27;color:#d4537e}
+.ok{color:#6abf6a}.err{color:#e06060}
+hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
+.row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+</style>
+</head><body>
+<h1>Test Users</h1>
+<div class="row">
+  <input id="adminKey" placeholder="Admin key" type="password"/>
+  <button onclick="loadUsers()">Load users</button>
+</div>
+<hr/>
+<h2>Create test user</h2>
+<div class="row">
+  <input id="uUsername" placeholder="username"/>
+  <input id="uEmail" placeholder="email@test.com"/>
+  <input id="uPassword" placeholder="password" type="password" value="TestPass123"/>
+  <input id="uNickname" placeholder="nickname"/>
+  <select id="uRole">
+    <option>Dominant</option><option>Submissive</option><option>Switch</option>
+    <option>Daddy</option><option>Babygirl</option><option>Master</option><option>Pet</option>
+  </select>
+  <button onclick="createUser()">Create</button>
+</div>
+<div id="createMsg" style="margin:8px 0;min-height:20px"></div>
+<hr/>
+<div id="userList"></div>
+<script>
+function key() { return document.getElementById('adminKey').value; }
+
+async function loadUsers() {
+  const res = await fetch('/api/admin/test-users', { headers: { 'x-admin-key': key() } });
+  const data = await res.json();
+  const list = document.getElementById('userList');
+  if (!res.ok) { list.innerHTML = '<p class="err">' + (data.error||'Wrong key') + '</p>'; return; }
+  if (!data.length) { list.innerHTML = '<p style="color:#888">No test users yet</p>'; return; }
+  let html = '<table><tr><th>Username</th><th>Email</th><th>Nickname</th><th>Role</th><th>Code</th><th></th></tr>';
+  data.forEach(function(u) {
+    html += '<tr><td>@' + u.username + '</td><td>' + u.email + '</td><td>' + u.nickname + '</td><td>' + u.role + '</td><td>' + u.connect_code + '</td>';
+    html += '<td><button class="del" onclick="deleteUser(\'' + u.id + '\')">Delete</button></td></tr>';
+  });
+  html += '</table>';
+  list.innerHTML = html;
+}
+
+async function createUser() {
+  const msg = document.getElementById('createMsg');
+  msg.innerHTML = 'Creating...';
+  const body = {
+    key: key(),
+    username: document.getElementById('uUsername').value.trim().toLowerCase(),
+    email: document.getElementById('uEmail').value.trim(),
+    password: document.getElementById('uPassword').value,
+    nickname: document.getElementById('uNickname').value.trim(),
+    role: document.getElementById('uRole').value
+  };
+  if (!body.username || !body.email) { msg.innerHTML = '<span class="err">Username and email required</span>'; return; }
+  const res = await fetch('/api/admin/create-test-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    msg.innerHTML = '<span class="ok">Created @' + data.username + ' — connect code: <strong>' + data.connectCode + '</strong></span>';
+    document.getElementById('uUsername').value = '';
+    document.getElementById('uEmail').value = '';
+    document.getElementById('uNickname').value = '';
+    loadUsers();
+  } else {
+    msg.innerHTML = '<span class="err">' + (data.error||'Error') + '</span>';
+  }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this test user and all their data?')) return;
+  const res = await fetch('/api/admin/delete-test-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-key': key() },
+    body: JSON.stringify({ id: id })
+  });
+  const data = await res.json();
+  if (res.ok) { loadUsers(); }
+  else { alert(data.error || 'Error deleting user'); }
+}
+</script>
+</body></html>`);
     return;
   }
 
@@ -1155,6 +1200,28 @@ const server = http.createServer(async (req, res) => {
           balance: earnedTotal - parseInt(spent.rows[0].total)
         };
       }
+      // Solo points — tasks visible only to self (visible_to = userId)
+      const soloRegular = await db.query(`
+        SELECT COALESCE(SUM(t.points), 0) as total
+        FROM task_completions tc
+        JOIN tasks t ON t.id = tc.task_id
+        WHERE tc.completed_by = $1 AND t.visible_to = $1 AND t.type != 'monthly'
+      `, [userId]);
+      const soloMonthly = await db.query(`
+        SELECT COALESCE(SUM(t.points), 0) as total
+        FROM monthly_completions mc
+        JOIN tasks t ON t.id = mc.task_id
+        WHERE mc.completed_by = $1 AND t.visible_to = $1
+      `, [userId]);
+      const soloSpent = await db.query(`
+        SELECT COALESCE(SUM(i.cost), 0) as total
+        FROM inventory i
+        WHERE i.redeemed_by = $1 AND i.owner_id = $1 AND i.is_solo = TRUE
+      `, [userId]);
+      const soloEarned = parseInt(soloRegular.rows[0].total) + parseInt(soloMonthly.rows[0].total);
+      const soloSpentAmt = parseInt(soloSpent.rows[0].total);
+      balances['_solo'] = { earned: soloEarned, spent: soloSpentAmt, balance: soloEarned - soloSpentAmt };
+
       json(res, balances);
     } catch(e) { console.error('Balances error:', e); json(res, { error: e.message }, 500); }
     return;
@@ -1374,18 +1441,18 @@ const server = http.createServer(async (req, res) => {
         p.shop = [];
         const shopQuery = uid === userId
           ? `SELECT * FROM shop_items WHERE owner_id=$1 AND active=TRUE ORDER BY created_at`
-          : `SELECT * FROM shop_items WHERE owner_id=$1 AND active=TRUE AND (visible_to IS NULL OR visible_to=$2) ORDER BY created_at`;
+          : `SELECT * FROM shop_items WHERE owner_id=$1 AND active=TRUE AND (visible_to IS NULL OR visible_to=$2) AND is_solo=FALSE ORDER BY created_at`;
         const shopParams = uid === userId ? [uid] : [uid, userId];
         const shopItems = await db.query(shopQuery, shopParams);
-        p.shop = shopItems.rows.map(i => ({ id:i.id, name:i.name, desc:i.description, cost:i.cost, visibleTo:i.visible_to }));
+        p.shop = shopItems.rows.map(i => ({ id:i.id, name:i.name, desc:i.description, cost:i.cost, visibleTo:i.visible_to, isSolo:i.is_solo }));
 
-        // Inventory — items this user redeemed
+        // Inventory
         p.inventory = [];
         const inv = await db.query(`SELECT * FROM inventory WHERE redeemed_by=$1 ORDER BY redeemed_at`, [uid]);
         p.inventory = inv.rows.map(i => ({
           id:i.id, rewardId:i.shop_item_id, name:i.shop_item_name, desc:i.shop_item_desc,
           cost:i.cost, fromUserId:i.owner_id, redeemedAt:i.redeemed_at?.getTime(),
-          fulfilled:i.fulfilled, fulfilledAt:i.fulfilled_at?.getTime()||null
+          fulfilled:i.fulfilled, fulfilledAt:i.fulfilled_at?.getTime()||null, isSolo:i.is_solo
         }));
 
         // Permissions
@@ -1581,17 +1648,18 @@ const server = http.createServer(async (req, res) => {
 
       // Shop items
       for (const item of (myData.shop || [])) {
-        await db.query(`INSERT INTO shop_items (id,owner_id,name,description,cost,visible_to,active) VALUES ($1,$2,$3,$4,$5,$6,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$6`,
-          [item.id, userId, item.name, item.desc||null, item.cost, item.visibleTo||null]);
+        await db.query(`INSERT INTO shop_items (id,owner_id,name,description,cost,visible_to,is_solo,active) VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$6, is_solo=$7`,
+          [item.id, userId, item.name, item.desc||null, item.cost, item.visibleTo||null, item.isSolo||false]);
       }
 
       // Inventory
       for (const inv of (myData.inventory || [])) {
-        await db.query(`INSERT INTO inventory (id,shop_item_id,shop_item_name,shop_item_desc,cost,owner_id,redeemed_by,redeemed_at,fulfilled,fulfilled_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO UPDATE SET fulfilled=$9,fulfilled_at=$10`,
+        await db.query(`INSERT INTO inventory (id,shop_item_id,shop_item_name,shop_item_desc,cost,owner_id,redeemed_by,redeemed_at,fulfilled,fulfilled_at,is_solo)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO UPDATE SET fulfilled=$9,fulfilled_at=$10`,
           [inv.id, inv.rewardId||null, inv.name, inv.desc||null, inv.cost,
            inv.fromUserId||userId, userId, new Date(inv.redeemedAt||Date.now()),
-           inv.fulfilled||false, inv.fulfilledAt ? new Date(inv.fulfilledAt) : null]);
+           inv.fulfilled||false, inv.fulfilledAt ? new Date(inv.fulfilledAt) : null,
+           inv.isSolo||false]);
       }
 
       // Permissions

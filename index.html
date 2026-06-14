@@ -750,6 +750,23 @@
       </div>
     </div>
 
+    <!-- Solo points banner — only shown when user has solo tasks -->
+    <div class="alltime-banner" id="soloBanner" style="display:none;margin-top:-8px">
+      <div class="alltime-left">
+        <div class="alltime-icon" style="background:var(--bg-input)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+        </div>
+        <div>
+          <div class="alltime-label">Solo points</div>
+          <div style="display:flex;align-items:baseline;gap:3px">
+            <span class="alltime-val" id="soloPts">0</span>
+            <span class="alltime-unit">pts available</span>
+          </div>
+          <div id="soloEarned" style="font-size:11px;color:var(--text-muted);margin-top:2px"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="week-nav">
       <span class="week-nav-label" id="weekLabel"></span>
       <div class="week-nav-btns">
@@ -1283,7 +1300,9 @@ function getBalanceWith(partnerId) {
   return partnershipBalances[partnerId]?.balance || 0;
 }
 
-// Legacy wrappers — kept for any remaining calls, scoped to current viewing context
+function getSoloEarned() { return partnershipBalances['_solo']?.earned || 0; }
+function getSoloSpent() { return partnershipBalances['_solo']?.spent || 0; }
+function getSoloBalance() { return partnershipBalances['_solo']?.balance || 0; }
 function getTotalEarned(profileId) {
   if (profileId === currentUser?.userId) {
     // Own profile — show balance with currently viewed partner
@@ -1615,11 +1634,16 @@ function renderTracker() {
     } else {
       taskVisibilityRow.style.display = 'block';
       taskVisibleSel.innerHTML = '';
+      // Partner(s) first — default
       if (currentUser.partnerId) {
         const partnerName = currentUser.partnerNickname || 'Partner';
-        taskVisibleSel.innerHTML = `<option value="${currentUser.partnerId}">${esc(partnerName)} only (default)</option><option value="">Everyone</option>`;
-      } else {
-        taskVisibleSel.innerHTML = `<option value="">Everyone</option>`;
+        taskVisibleSel.innerHTML += `<option value="${currentUser.partnerId}">${esc(partnerName)} only</option>`;
+      }
+      // Solo — only visible to you
+      taskVisibleSel.innerHTML += `<option value="${currentUser.userId}">Solo (just me)</option>`;
+      // Everyone — only if has partner(s)
+      if (currentUser.partnerId) {
+        taskVisibleSel.innerHTML += `<option value="">Everyone</option>`;
       }
     }
   }
@@ -1801,38 +1825,44 @@ function renderWeek() {
 }
 
 function renderTotals() {
-  // Calculate day points from local state instantly
   document.getElementById('totalPts').textContent = getDayPoints(selectedDate);
   document.getElementById('totalLabel').textContent = selectedDate===getTodayKey() ? 'Points earned today' : 'Points earned';
 
-  // Partnership balance from server-loaded partnershipBalances
-  let earned, spent, balance;
+  let earned, spent, balance, label;
   if (isOwnProfile() && currentUser.partnerId) {
     earned  = getEarnedWith(currentUser.partnerId);
     spent   = getSpentWith(currentUser.partnerId);
     balance = getBalanceWith(currentUser.partnerId);
+    label   = `Your points with ${currentUser.partnerNickname || 'Partner'}`;
   } else if (!isOwnProfile()) {
     const theirBalances = state._partnerBalances || {};
     earned  = theirBalances.earned  || 0;
     spent   = theirBalances.spent   || 0;
     balance = theirBalances.balance || 0;
+    label   = `${currentUser.partnerNickname || 'Partner'}'s points with you`;
   } else {
-    earned = 0; spent = 0; balance = 0;
+    earned = 0; spent = 0; balance = 0; label = 'Points';
   }
 
-  // Update icon to match viewing profile
   const iconKey = isOwnProfile() ? (currentUser.icon || 'heart') : (currentUser.partnerIcon || 'star');
   const alltimeIconEl = document.getElementById('alltimeIcon');
   if (alltimeIconEl) alltimeIconEl.innerHTML = iconSVG(iconKey, 20);
-
   document.getElementById('alltimePts').textContent = balance;
-  const earnedEl = document.getElementById('alltimeEarned');
-  earnedEl.textContent = spent > 0 ? `${earned} earned · ${spent} spent` : `${earned} pts earned`;
-  const viewingName = isOwnProfile() ? 'Your' : (currentUser.partnerNickname||'Partner')+"'s";
-  const withName = isOwnProfile()
-    ? (currentUser.partnerNickname ? ` with ${currentUser.partnerNickname}` : '')
-    : ` with you`;
-  document.getElementById('alltimeLabel').textContent = `${viewingName} points${withName}`;
+  document.getElementById('alltimeEarned').textContent = spent > 0 ? `${earned} earned · ${spent} spent` : `${earned} pts earned`;
+  document.getElementById('alltimeLabel').textContent = label;
+
+  // Solo banner — only when on own profile and have solo points
+  const soloBanner = document.getElementById('soloBanner');
+  if (soloBanner) {
+    const solobal = getSoloBalance();
+    if (isOwnProfile() && solobal > 0) {
+      soloBanner.style.display = 'flex';
+      document.getElementById('soloPts').textContent = solobal;
+      document.getElementById('soloEarned').textContent = `${getSoloEarned()} earned · ${getSoloSpent()} spent`;
+    } else {
+      soloBanner.style.display = 'none';
+    }
+  }
 }
 
 function renderAll() {
@@ -1855,9 +1885,20 @@ function renderShop() {
     : getSpentWith(viewingProfile);
 
   document.getElementById('balancePts').textContent = myBalance;
-  document.getElementById('balanceLabel').textContent = 'Your balance';
+  document.getElementById('balanceLabel').textContent = isOwnProfile()
+    ? (currentUser.partnerNickname ? `Your points with ${currentUser.partnerNickname}` : 'Your balance')
+    : `Your balance`;
   document.getElementById('balanceSpent').textContent = mySpent > 0 ? `${mySpent} pts spent on rewards` : '';
-  // Show the viewing user's icon
+  // Show solo balance line if on own profile and have solo points
+  const existingSoloLine = document.getElementById('shopSoloBalance');
+  if (existingSoloLine) existingSoloLine.remove();
+  if (isOwnProfile() && getSoloBalance() > 0) {
+    const soloLine = document.createElement('div');
+    soloLine.id = 'shopSoloBalance';
+    soloLine.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:4px';
+    soloLine.textContent = `🧍 Solo: ${getSoloBalance()} pts available`;
+    document.getElementById('balanceSpent').after(soloLine);
+  }
   const iconKey = isOwnProfile() ? (currentUser.icon || 'heart') : (currentUser.partnerIcon || 'star');
   document.getElementById('balanceIcon').innerHTML = iconSVG(iconKey, 20);
 
@@ -1865,7 +1906,12 @@ function renderShop() {
   content.innerHTML = '';
 
   if (isOwnProfile()) {
-    // Viewing OWN shop = see rewards YOU created for your partner to buy + their inventory/fulfil
+    // Split shop into partner rewards and solo rewards
+    const myShop = ps(currentUser.userId).shop || [];
+    const partnerItems = myShop.filter(i => !i.isSolo);
+    const soloItems = myShop.filter(i => i.isSolo);
+
+    // ── Partner rewards section ──
     content.innerHTML = `
       <div class="section-head" style="margin-bottom:10px">
         Your shop
@@ -1873,15 +1919,14 @@ function renderShop() {
       </div>`;
     const grid = document.createElement('div');
     grid.className = 'shop-grid';
-    const myShop = ps(currentUser.userId).shop;
-    if (!myShop.length) {
-      grid.innerHTML = `<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>No rewards yet — add some below</div>`;
+    if (!partnerItems.length) {
+      grid.innerHTML = `<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>No partner rewards yet</div>`;
     } else {
-      myShop.forEach(item => {
+      partnerItems.forEach(item => {
         const el = document.createElement('div');
         el.className = 'shop-item';
-        const scopeLabel = item.visibleTo
-          ? (item.visibleTo === currentUser.partnerId ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>` : `<span class="section-badge assigned" style="font-size:9px">🔒 Private</span>`)
+        const scopeLabel = item.visibleTo === currentUser.partnerId
+          ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>`
           : `<span class="section-badge repeat" style="font-size:9px">Everyone</span>`;
         el.innerHTML = `
           <div class="shop-item-body">
@@ -1896,30 +1941,62 @@ function renderShop() {
           </div>`;
         grid.appendChild(el);
       });
-      // Wire buttons after all items added — avoids innerHTML wiping listeners
-      grid.querySelectorAll('.shop-edit-btn').forEach(btn => {
-        btn.onclick = () => {
-          const it = myShop.find(i => i.id === btn.dataset.id);
-          if (it) openRewardEdit(it);
-        };
-      });
-      grid.querySelectorAll('.shop-del-btn').forEach(btn => {
-        btn.onclick = () => {
-          ps(currentUser.userId).shop = ps(currentUser.userId).shop.filter(x => x.id !== btn.dataset.id);
-          scheduleSave(); renderShop();
-        };
-      });
     }
     content.appendChild(grid);
+
+    // ── Solo rewards section ──
+    const hr0 = document.createElement('hr'); hr0.className = 'divider';
+    content.appendChild(hr0);
+    const soloHead = document.createElement('div');
+    soloHead.innerHTML = `<div class="section-head" style="margin-bottom:10px">Solo rewards <span class="section-badge" style="font-size:9px;background:var(--bg-input);color:var(--text-muted)">🧍 Just for you</span></div>`;
+    content.appendChild(soloHead);
+    const soloGrid = document.createElement('div');
+    soloGrid.className = 'shop-grid';
+    if (!soloItems.length) {
+      soloGrid.innerHTML = `<div class="empty-state">No solo rewards yet — add one below by selecting "Solo (just me)"</div>`;
+    } else {
+      soloItems.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'shop-item';
+        el.innerHTML = `
+          <div class="shop-item-body">
+            <div class="shop-item-name">${esc(item.name)}</div>
+            ${item.desc?`<div class="shop-item-desc">${esc(item.desc)}</div>`:''}
+            <div style="margin-top:4px"><span class="section-badge" style="font-size:9px;background:var(--bg-input);color:var(--text-muted)">🧍 Solo</span></div>
+          </div>
+          <div class="shop-item-right">
+            <span class="shop-cost">${item.cost} pts</span>
+            <button class="shop-delete solo-del-btn" data-id="${item.id}">${trashSVG()}</button>
+          </div>`;
+        soloGrid.appendChild(el);
+      });
+    }
+    content.appendChild(soloGrid);
+
+    // Wire all buttons after appending
+    grid.querySelectorAll('.shop-edit-btn').forEach(btn => {
+      btn.onclick = () => { const it = partnerItems.find(i => i.id === btn.dataset.id); if (it) openRewardEdit(it); };
+    });
+    grid.querySelectorAll('.shop-del-btn').forEach(btn => {
+      btn.onclick = () => { ps(currentUser.userId).shop = ps(currentUser.userId).shop.filter(x => x.id !== btn.dataset.id); scheduleSave(); renderShop(); };
+    });
+    soloGrid.querySelectorAll('.solo-del-btn').forEach(btn => {
+      btn.onclick = () => { ps(currentUser.userId).shop = ps(currentUser.userId).shop.filter(x => x.id !== btn.dataset.id); scheduleSave(); renderShop(); };
+    });
 
     // Add reward form — use appendChild not innerHTML+= to preserve grid listeners
     const hr1 = document.createElement('hr'); hr1.className = 'divider';
     content.appendChild(hr1);
     const formDiv = document.createElement('div');
-    // Build partner options for visibility selector
-    const partnerOptions = currentUser.partnerId
-      ? `<option value="">Everyone</option><option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`
-      : `<option value="">Everyone</option>`;
+    // Build visibility options for rewards
+    let partnerOptions = '';
+    if (currentUser.partnerId) {
+      partnerOptions += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+    }
+    partnerOptions += `<option value="${currentUser.userId}">Solo (just me)</option>`;
+    if (currentUser.partnerId) {
+      partnerOptions += `<option value="">Everyone</option>`;
+    }
     formDiv.innerHTML = `
       <div class="section-head">Add a reward to your shop</div>
       <div class="add-form">
@@ -2065,8 +2142,19 @@ function renderShop() {
 }
 
 function redeemReward(item) {
-  const myBalance = currentUser.partnerId ? getBalanceWith(currentUser.partnerId) : 0;
-  if (myBalance < item.cost) { toast('Not enough points with this partner', 'error'); return; }
+  const isSolo = item.isSolo;
+  const myBalance = isSolo ? getSoloBalance() : (currentUser.partnerId ? getBalanceWith(currentUser.partnerId) : 0);
+  if (myBalance < item.cost) { toast(isSolo ? 'Not enough solo points' : 'Not enough points with this partner', 'error'); return; }
+  const now = Date.now();
+  ps(currentUser.userId).inventory.push({
+    id: uid(), rewardId: item.id, name: item.name, desc: item.desc,
+    cost: item.cost, fromUserId: currentUser.userId, // solo rewards — from self
+    redeemedAt: now, fulfilled: isSolo, fulfilledAt: isSolo ? now : null, isSolo
+  });
+  scheduleSave(); renderShop(); renderTotals();
+  loadBalances().then(() => renderTotals());
+  toast(isSolo ? `🧍 Solo reward unlocked: "${item.name}"` : `🎁 "${item.name}" redeemed for ${item.cost} pts`, 'success');
+}
   ps(currentUser.userId).inventory.push({
     id: uid(), rewardId: item.id, name: item.name, desc: item.desc,
     cost: item.cost, fromUserId: currentUser.partnerId,
@@ -2302,10 +2390,11 @@ function addReward() {
   const cost=parseInt(document.getElementById('rewardCost').value);
   const visibleToEl = document.getElementById('rewardVisibleTo');
   const visibleTo = visibleToEl ? (visibleToEl.value || null) : null;
+  const isSolo = visibleTo === currentUser.userId;
   if(!name){document.getElementById('rewardName').focus();return;}
   if(!cost||cost<1){document.getElementById('rewardCost').focus();return;}
   const targetId = isOwnProfile() ? currentUser.userId : viewingProfile;
-  ps(targetId).shop.push({id:uid(),name,desc,cost,visibleTo});
+  ps(targetId).shop.push({id:uid(),name,desc,cost,visibleTo,isSolo});
   document.getElementById('rewardName').value='';
   document.getElementById('rewardDesc').value='';
   document.getElementById('rewardCost').value='';
