@@ -1094,15 +1094,14 @@ const server = http.createServer(async (req, res) => {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
-      const { taskId } = await parseBody(req);
-      console.log(`Delete task ${taskId} by user ${userId}`);
-      const r = await db.query(`UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2)`, [taskId, userId]);
+      const { taskId, ownerProfile } = await parseBody(req);
+      console.log(`Delete task ${taskId} by user ${userId}, ownerProfile: ${ownerProfile}`);
+      // Allow if: user owns task, user created task, or user is deleting from their partner's profile
+      const r = await db.query(
+        `UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2 OR owner_id=$3)`,
+        [taskId, userId, ownerProfile || userId]
+      );
       console.log(`Rows updated: ${r.rowCount}`);
-      if (r.rowCount === 0) {
-        // Try without ownership check — partner may have created it for us
-        const r2 = await db.query(`UPDATE tasks SET active=FALSE WHERE id=$1`, [taskId]);
-        console.log(`Fallback rows updated: ${r2.rowCount}`);
-      }
       json(res, { ok: true });
     } catch(e) { console.error('Delete error:', e); json(res, { error: e.message }, 500); }
     return;
