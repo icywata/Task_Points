@@ -1474,6 +1474,8 @@ function makeTaskRow(opts) {
 
 // ── Tracker render ─────────────────────────────────────────────
 function renderTracker() {
+  const isOwn = isOwnProfile();
+  const canAddTasks = isOwn || viewedProfileGrantsTaskPerms();
   renderWeek();
   renderAssigned();
   renderMonthly();
