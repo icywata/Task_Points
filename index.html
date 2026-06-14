@@ -1700,7 +1700,15 @@ function renderMonthly() {
     const canCheck=isOwnProfile();
     const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:canDelete,taskRef:t,visibleTo:t.visibleTo,
-      onCheck:()=>{if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};ps().monthlyDone[mk][t.id]=isDone?null:selectedDate;scheduleSave();renderTracker();loadBalances().then(()=>renderTotals());},
+      onCheck:async ()=>{
+        if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};
+        const nowDone = !isDone;
+        ps().monthlyDone[mk][t.id] = nowDone ? selectedDate : null;
+        renderTracker();
+        await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+          body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: nowDone, taskType: 'monthly' }) });
+        await loadBalances(); renderTotals();
+      },
       onDelete:()=>{ deleteTask(t.id); }
     });
     list.appendChild(row);
@@ -1718,7 +1726,15 @@ function renderDaily() {
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'repeat-row',
       checkDisabled:!canCheck,showDelete:canDelete,taskRef:t,visibleTo:t.visibleTo,
       extraButtons:isOwnProfile()?`<button class="task-delete-future">Del future</button>`:'',
-      onCheck:()=>{if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};ps().repeatingDone[selectedDate][t.id]=!isDone;scheduleSave();renderTracker();loadBalances().then(()=>renderTotals());},
+      onCheck:async ()=>{
+        if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};
+        const nowDone = !isDone;
+        ps().repeatingDone[selectedDate][t.id] = nowDone;
+        renderTracker();
+        await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+          body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: nowDone, taskType: 'repeat' }) });
+        await loadBalances(); renderTotals();
+      },
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
     });
     if (isOwnProfile()) {
@@ -1737,13 +1753,14 @@ function renderDaily() {
       checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'daily',
       proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
-      onCheck:()=>{
+      onCheck:async ()=>{
         const task = getDayTasks(selectedDate)[i];
         task.done = !task.done;
         if (!task.done) task.proof = null;
-        scheduleSave(); renderTracker();
-        // Refresh partnership balances in background after check
-        loadBalances().then(() => renderTotals());
+        renderTracker();
+        await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+          body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: task.done, taskType: 'daily' }) });
+        await loadBalances(); renderTotals();
       },
       onDelete:()=>{ deleteTask(t.id); }
     });

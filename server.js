@@ -1110,6 +1110,34 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Save profile ───────────────────────────────────────────
+  // ── Toggle task completion (fast path) ────────────────────
+  if (req.method === 'POST' && url === '/api/task/complete') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { taskId, dateKey, done, taskType } = await parseBody(req);
+      if (done) {
+        if (taskType === 'monthly') {
+          const mk = dateKey.slice(0,7);
+          await db.query(`INSERT INTO monthly_completions (id,task_id,completed_by,completed_on,month_key) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (task_id,completed_by,month_key) DO UPDATE SET completed_on=$4`,
+            [uid(), taskId, userId, dateKey, mk]);
+        } else {
+          await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+            [uid(), taskId, userId, dateKey]);
+        }
+      } else {
+        if (taskType === 'monthly') {
+          const mk = dateKey.slice(0,7);
+          await db.query(`DELETE FROM monthly_completions WHERE task_id=$1 AND completed_by=$2 AND month_key=$3`, [taskId, userId, mk]);
+        } else {
+          await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2`, [taskId, userId]);
+        }
+      }
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   // ── Change password ────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/change-password') {
     const userId = await requireAuth(req);
