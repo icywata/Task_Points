@@ -1420,7 +1420,15 @@ async function deleteUser(id) {
 
         // Assigned tasks
         p.assigned = [];
-        const assignedTasks = await db.query(`SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='assigned' AND t.active=TRUE ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}`, visParams);
+        const assignedTasks = await db.query(`
+          SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status,
+                 pp.viewer_ids
+          FROM tasks t
+          LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1
+          LEFT JOIN proof_photos pp ON pp.r2_key = tc.proof_key
+          WHERE t.owner_id=$1 AND t.type='assigned' AND t.active=TRUE
+          ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}
+        `, visParams);
         const seenA = new Set();
         assignedTasks.rows.forEach(t => {
           if (!seenA.has(t.id)) {
@@ -1434,7 +1442,7 @@ async function deleteUser(id) {
               completedOn: t.completed_on && (!t.require_proof || t.proof_status === 'approved')
                 ? t.completed_on.toISOString().slice(0,10) : null,
               requireProof:t.require_proof,
-              proof:t.proof_key ? { key:t.proof_key, state:t.proof_status||'pending', viewerIds:[] } : null
+              proof:t.proof_key ? { key:t.proof_key, state:t.proof_status||'pending', viewerIds: t.viewer_ids||[] } : null
             });
           }
         });

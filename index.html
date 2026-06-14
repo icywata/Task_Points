@@ -2373,6 +2373,9 @@ function addTask() {
     notifyAssigned(task,expiry);
     const targetName = isOwnProfile() ? 'yourself' : (currentUser.partnerNickname || 'partner');
     toastMsg = `⚑ Task assigned to ${targetName}`;
+    // Immediately save assigned tasks so partner sees them without refreshing
+    clearTimeout(saveTimer); saveTimer = null;
+    saveToServer();
   } else {
     getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof,visibleTo,createdBy});
     toastMsg = '✓ Task added';
@@ -2803,15 +2806,11 @@ function getUploadCountToday() {
 }
 
 async function uploadProof(file, taskId, taskType, viewerIds) {
-  // Throttle check
-  const count = getUploadCountToday();
-  if (count >= DAILY_UPLOAD_LIMIT) {
-    throw new Error(`Daily upload limit reached (${DAILY_UPLOAD_LIMIT}/day). Try again tomorrow.`);
-  }
   const res = await fetch('/api/proof/upload', {
     method: 'POST',
+    credentials: 'include',
     headers: {
-      'Content-Type': file.type,
+      'Content-Type': file.type || 'image/jpeg',
       'X-Task-Id': taskId,
       'X-Task-Type': taskType,
       'X-Viewer-Ids': viewerIds.join(',')
@@ -2825,13 +2824,19 @@ async function uploadProof(file, taskId, taskType, viewerIds) {
 
 async function openProofForUpload(file, taskRef, taskType, onUploaded) {
   const viewerIds = getProofViewerIds(viewingProfile);
+  // Show loading state on upload button
+  const uploadBtns = document.querySelectorAll('.proof-upload-btn');
+  uploadBtns.forEach(b => { b.textContent = 'Uploading…'; b.disabled = true; });
   try {
     const key = await uploadProof(file, taskRef.id, taskType, viewerIds);
     taskRef.proof = { key, state: 'pending', uploadedAt: Date.now(), viewerIds };
     onUploaded(key);
+    toast('📷 Proof uploaded — awaiting review', 'success');
   } catch(err) {
     console.error('Upload failed:', err);
-    alert('Photo upload failed: ' + err.message);
+    toast('Upload failed: ' + err.message, 'error');
+  } finally {
+    uploadBtns.forEach(b => { b.textContent = 'Upload proof'; b.disabled = false; });
   }
 }
 
@@ -2846,10 +2851,10 @@ async function openProofModal(key, isReviewer, taskRef, onApprove, onReject, isA
 
   const proof = taskRef?.proof;
   const viewerIds = proof?.viewerIds || [];
+  // Reviewer = explicitly passed as isReviewer, OR userId is in viewerIds
+  // Do NOT default to reviewer just because viewerIds is empty — that caused the refresh bug
   const effectiveIsReviewer = !isAlbumView && (isReviewer ||
-    viewerIds.includes(currentUser.userId) ||
-    viewerIds.length === 0 ||
-    (viewerIds.length === 1 && viewerIds[0] === currentUser.userId));
+    (viewerIds.length > 0 && viewerIds.includes(currentUser.userId)));
 
   proofModalContext = { key, taskRef, isReviewer: effectiveIsReviewer, onApprove, onReject, isAlbumView };
   document.getElementById('proofModalImg').src = data.url;
@@ -3046,14 +3051,16 @@ async function removeFromAlbum(key) {
 function triggerFileUpload(taskRef, taskType, onUploaded) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/*';
-  input.capture = 'environment';
+  input.accept = 'image/*,image/heic,image/heif';
+  // Don't force camera — let user choose camera or gallery (fixes iOS first-tap issue)
   input.onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     await openProofForUpload(file, taskRef, taskType, onUploaded);
   };
+  document.body.appendChild(input); // must be in DOM for iOS Safari
   input.click();
+  setTimeout(() => document.body.removeChild(input), 30000);
 }
 
 // ── Boot ───────────────────────────────────────────────────────
