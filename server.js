@@ -455,7 +455,8 @@ const server = http.createServer(async (req, res) => {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
-      const { firstName, lastName, nickname, role, email } = await parseBody(req);
+      const body = await parseBody(req);
+      const { firstName, lastName, nickname, role, email, icon } = body;
       const state = await readData();
       if (!state[userId]) state[userId] = {};
       if (firstName !== undefined) state[userId].firstName = firstName;
@@ -463,7 +464,7 @@ const server = http.createServer(async (req, res) => {
       if (nickname  !== undefined) state[userId].nickname  = nickname;
       if (role      !== undefined) state[userId].role      = role;
       if (email     !== undefined) state[userId].notificationEmail = email;
-      if (body.icon !== undefined) state[userId].icon      = body.icon;
+      if (icon      !== undefined) state[userId].icon      = icon;
       await writeData(state);
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }

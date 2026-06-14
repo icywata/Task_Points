@@ -40,7 +40,7 @@
   .login-logo{width:60px;height:60px;border-radius:50%;background:var(--accent-bg);border:2px solid var(--accent-mid);display:flex;align-items:center;justify-content:center}
   .login-logo svg{color:var(--accent-mid);width:28px;height:28px}
   .login-title{font-size:22px;font-weight:700;color:var(--text-primary);text-align:center;letter-spacing:-.3px}
-  .login-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-top:-8px}
+  .login-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-top:8px}
   .login-field{width:100%;display:flex;flex-direction:column;gap:6px}
   .login-field label{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}
   .login-field input{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:15px;padding:11px 14px;outline:none;transition:border-color .15s}
@@ -64,14 +64,15 @@
 
   /* ── Profile switcher ── */
   .profile-switcher{display:flex;gap:6px;margin-bottom:1.25rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:5px}
-  .profile-btn{flex:1;min-height:44px;border-radius:var(--radius-lg);border:none;background:transparent;font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--text-muted);transition:all .2s;padding:6px 4px}
+  .profile-btn{flex:1;min-height:44px;border-radius:var(--radius-lg);border:none;background:transparent;font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--text-muted);transition:all .2s;padding:6px 4px;position:relative}
+  .profile-btn .p-name-row{display:flex;align-items:center;gap:5px}
   .profile-btn .p-name{font-size:13px;font-weight:600}
   .profile-btn .p-role{font-size:10px;font-weight:500;opacity:.7;text-transform:uppercase;letter-spacing:.3px}
   .profile-btn:hover{color:var(--text-secondary)}
   .profile-btn.active-gg{background:var(--accent-bg);color:#f4c0d1}
   .profile-btn.active-dad{background:var(--accent-bg);color:#a8c8f0}
   .profile-btn.active-gg .p-role,.profile-btn.active-dad .p-role{opacity:.8}
-  .you-badge{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:var(--accent-bg-lite);color:var(--accent-mid);padding:1px 5px;border-radius:4px;margin-top:1px}
+  .you-badge{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:var(--accent-bg-lite);color:var(--accent-mid);padding:1px 5px;border-radius:4px}
 
   /* ── Screen tabs ── */
   .screen-tabs{display:flex;gap:6px;margin-bottom:1.5rem}
@@ -103,6 +104,10 @@
   .total-unit{font-size:13px;font-weight:500;color:var(--accent-light);margin-left:4px;opacity:.7}
   .total-icon{width:40px;height:40px;border-radius:50%;background:var(--accent-bg-lite);display:flex;align-items:center;justify-content:center}
   .total-icon svg{color:var(--accent-mid)}
+
+  /* ── Screens ── */
+  .screen{display:none}
+  .screen.visible{display:block}
 
   /* ── Week nav ── */
   .week-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -697,9 +702,11 @@ function renderProfileSwitcher() {
     btn.className = 'profile-btn' + (isActive ? ' '+themeClass : '');
     btn.innerHTML = `
       <div class="p-icon">${iconSVG(p.icon, 18)}</div>
-      <span class="p-name">${esc(p.nickname||p.id)}</span>
+      <div class="p-name-row">
+        <span class="p-name">${esc(p.nickname||p.id)}</span>
+        ${p.isYou ? '<span class="you-badge">You</span>' : ''}
+      </div>
       <span class="p-role">${esc(p.role||'')}</span>
-      ${p.isYou ? '<span class="you-badge">You</span>' : ''}
     `;
     btn.onclick = () => switchProfile(p.id);
     sw.appendChild(btn);
