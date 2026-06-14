@@ -102,8 +102,8 @@
   .login-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-top:8px}
 
   /* ── Signup / verify screens ── */
-  #signupScreen,#verifyScreen{position:fixed;inset:0;background:var(--bg-page);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;overflow-y:auto}
-  #signupScreen.hidden,#verifyScreen.hidden{display:none}
+  #signupScreen,#verifyScreen,#forgotScreen,#resetScreen{position:fixed;inset:0;background:var(--bg-page);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;overflow-y:auto}
+  #signupScreen.hidden,#verifyScreen.hidden,#forgotScreen.hidden,#resetScreen.hidden{display:none}
   .signup-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem 1.75rem;width:100%;max-width:400px;display:flex;flex-direction:column;gap:1rem}
   .signup-logo{width:48px;height:48px;border-radius:50%;background:var(--accent-bg);border:2px solid var(--accent-mid);display:flex;align-items:center;justify-content:center;margin:0 auto}
   .signup-logo svg{color:var(--accent-mid);width:22px;height:22px}
@@ -1066,7 +1066,10 @@ async function bootApp() {
   // Apply theme
   applyTheme(currentUser.userId);
 
-  document.getElementById('loginScreen').classList.add('hidden');
+  // Hide all auth screens
+  ['loginScreen','signupScreen','verifyScreen','forgotScreen','resetScreen'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
   document.getElementById('appScreen').classList.add('visible');
 
   // Set viewing profile to own profile by default
