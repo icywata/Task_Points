@@ -1028,14 +1028,16 @@ const server = http.createServer(async (req, res) => {
         const partnerId = pship.partner_id;
 
         // Points earned on tasks visible to this partner or everyone
-        // No date cutoff for existing partnerships — "fresh start" is enforced
-        // naturally because new tasks default to visible_to = specific partner
+        // Combines regular task_completions AND monthly_completions
         const earned = await db.query(`
           SELECT COALESCE(SUM(t.points), 0) as total
-          FROM task_completions tc
-          JOIN tasks t ON t.id = tc.task_id
-          WHERE tc.completed_by = $1
-            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+          FROM (
+            SELECT tc.task_id FROM task_completions tc WHERE tc.completed_by = $1
+            UNION ALL
+            SELECT mc.task_id FROM monthly_completions mc WHERE mc.completed_by = $1
+          ) completions
+          JOIN tasks t ON t.id = completions.task_id
+          WHERE (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [userId, partnerId]);
 
         // Points spent on items from this partner's shop
@@ -1253,10 +1255,13 @@ const server = http.createServer(async (req, res) => {
 
         const theirEarned = await db.query(`
           SELECT COALESCE(SUM(t.points), 0) as total
-          FROM task_completions tc
-          JOIN tasks t ON t.id = tc.task_id
-          WHERE tc.completed_by = $1
-            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+          FROM (
+            SELECT tc.task_id FROM task_completions tc WHERE tc.completed_by = $1
+            UNION ALL
+            SELECT mc.task_id FROM monthly_completions mc WHERE mc.completed_by = $1
+          ) completions
+          JOIN tasks t ON t.id = completions.task_id
+          WHERE (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [partnerId, userId]);
 
         const theirSpent = await db.query(`
