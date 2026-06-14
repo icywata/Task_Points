@@ -370,6 +370,12 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+  // ── Simple test endpoint ────────────────────────────────────
+  if (req.method === 'GET' && url === '/api/test') {
+    json(res, { ok: true, version: 'v9', time: new Date().toISOString() });
+    return;
+  }
+
   // ── Serve main app ──────────────────────────────────────────
   if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
     fs.readFile(HTML_FILE, (err, data) => {

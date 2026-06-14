@@ -707,10 +707,6 @@ async function checkSession() {
   } catch(e) { console.error('Session check failed:', e); }
 }
 
-function applyTheme(userId) {
-  document.body.className = userId === 'gg' ? 'theme-gg' : userId === 'dad' ? 'theme-dad' : 'theme-default';
-}
-
 // ── State ──────────────────────────────────────────────────────
 let state = {};
 let viewingProfile = null; // which profile tab we're viewing
@@ -1979,6 +1975,8 @@ async function removeFromAlbum(key) {
   closeProofModal();
   openAlbum(); // refresh album view
 }
+
+function triggerFileUpload(taskRef, taskType, onUploaded) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
