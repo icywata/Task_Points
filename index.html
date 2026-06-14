@@ -1220,15 +1220,22 @@ function getRepeatingForDay(key, profileId) {
 async function loadFromServer() {
   setSync('loading','Loading…');
   try {
-    const res = await fetch('/api/data');
+    const res = await fetch('/api/data', { credentials:'include' });
     if (res.status===401) { doLogout(); return; }
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      console.error('Load failed:', res.status, err);
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
     state = await res.json();
     ps(currentUser.userId);
     if (currentUser.partnerId) ps(currentUser.partnerId);
     setSync('saved','Up to date');
     renderAll();
-  } catch(e) { setSync('error','Could not load'); }
+  } catch(e) {
+    console.error('loadFromServer error:', e.message);
+    setSync('error','Could not load');
+  }
 }
 
 async function saveToServer() {
