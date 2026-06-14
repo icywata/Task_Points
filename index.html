@@ -1609,7 +1609,6 @@ function renderDaily() {
     const canCheck = isOwnProfile();
     const isReviewer = !isOwnProfile() || !currentUser.partnerId;
     const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
-    console.log(`Daily task "${t.name}": createdBy=${t.createdBy}, currentUser=${currentUser.userId}, canDelete=${canDelete}`);
     const row=makeTaskRow({
       done:t.done, name:t.name, desc:t.desc, pts:t.pts,
       checkDisabled:!canCheck, showDelete:canDelete,
