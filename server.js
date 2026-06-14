@@ -883,6 +883,60 @@ const server = http.createServer(async (req, res) => {
       const myData = state[userId];
       if (!myData) { json(res, { ok: true }); return; }
 
+      // Also process partner's data if present (e.g. tasks assigned to partner)
+      const partnerData = partnership ? state[partnership.partnerId] : null;
+
+      // Helper to save assigned tasks for a given profile
+      const saveAssigned = async (assigned, ownerIdVal, createdByVal) => {
+        for (const t of (assigned || [])) {
+          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,assigned_on,expires_on,require_proof,active)
+            VALUES ($1,$2,$3,'assigned',$4,$5,$6,$7,$8,$9,TRUE) ON CONFLICT (id) DO NOTHING`,
+            [t.id, ownerIdVal, createdByVal, t.name, t.desc||null, t.pts, t.assignedOn, t.expiresOn, t.requireProof||false]);
+          if (t.completedOn) {
+            await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+              [uid(), t.id, ownerIdVal, t.completedOn]);
+          }
+          if (t.proof?.key) {
+            await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)
+              VALUES ($1,$2,$3,$4,$5,$6)
+              ON CONFLICT (task_id,completed_by,completed_on) DO UPDATE SET proof_key=$5,proof_status=$6`,
+              [uid(), t.id, ownerIdVal, t.completedOn||t.assignedOn, t.proof.key, t.proof.state||'pending']);
+          }
+        }
+      };
+
+      // Save partner's assigned tasks (tasks we added to their profile)
+      if (partnerData && partnerData.assigned) {
+        await saveAssigned(partnerData.assigned, partnership.partnerId, userId);
+      }
+
+      // Save partner's other task types if we have permission
+      if (partnerData && partnership) {
+        const perms = await getPermissions(partnership.partnerId, userId);
+        if (perms.allow_tasks) {
+          // Daily tasks added to partner's profile
+          for (const [dateKey, day] of Object.entries(partnerData.days || {})) {
+            for (const t of (day.tasks || [])) {
+              await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,active) VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,TRUE) ON CONFLICT (id) DO NOTHING`,
+                [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, t.requireProof||false]);
+            }
+          }
+          // Monthly tasks
+          for (const [mk, tasks] of Object.entries(partnerData.monthly || {})) {
+            for (const t of tasks) {
+              await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,month_key,active) VALUES ($1,$2,$3,'monthly',$4,$5,$6,$7,TRUE) ON CONFLICT (id) DO NOTHING`,
+                [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, mk]);
+            }
+          }
+          // Repeating tasks
+          for (const t of (partnerData.repeating || [])) {
+            const deletedFrom = (partnerData.repeatingDeleted || {})[t.id] || null;
+            await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,active) VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET deleted_from=$8`,
+              [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, t.startDate, deletedFrom]);
+          }
+        }
+      }
+
       // Update profile icon/theme if changed
       const user = await getUserById(userId);
 
