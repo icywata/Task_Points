@@ -856,28 +856,17 @@ const server = http.createServer(async (req, res) => {
       const balances = {};
       for (const pship of partnerships.rows) {
         const partnerId = pship.partner_id;
-        const partnershipStart = pship.created_at.toISOString().slice(0,10);
 
-        // Points earned on tasks visible to this partner or everyone, after partnership start
+        // Points earned on tasks visible to this partner or everyone
+        // No date cutoff for existing partnerships — "fresh start" is enforced
+        // naturally because new tasks default to visible_to = specific partner
         const earned = await db.query(`
           SELECT COALESCE(SUM(t.points), 0) as total
           FROM task_completions tc
           JOIN tasks t ON t.id = tc.task_id
           WHERE tc.completed_by = $1
             AND (t.visible_to = $2 OR t.visible_to IS NULL)
-            AND tc.completed_on >= $3
-        `, [userId, partnerId, partnershipStart]);
-
-        // Debug — also count without date filter
-        const earnedAll = await db.query(`
-          SELECT COALESCE(SUM(t.points), 0) as total, COUNT(*) as cnt
-          FROM task_completions tc
-          JOIN tasks t ON t.id = tc.task_id
-          WHERE tc.completed_by = $1
-            AND (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [userId, partnerId]);
-
-        console.log(`Balances for ${userId} with ${partnerId}: start=${partnershipStart}, earned_filtered=${earned.rows[0].total}, earned_all=${earnedAll.rows[0].total}, count_all=${earnedAll.rows[0].cnt}`);
 
         // Points spent on items from this partner's shop
         const spent = await db.query(`
@@ -1092,8 +1081,6 @@ const server = http.createServer(async (req, res) => {
       // Add partner's balance with current user (for displaying on partner's profile)
       if (partnership) {
         const partnerId = partnership.partnerId;
-        const pshipRow = await db.query(`SELECT created_at FROM partnerships WHERE id=$1`, [partnership.partnershipId]);
-        const pStart = pshipRow.rows[0]?.created_at?.toISOString().slice(0,10) || '2000-01-01';
 
         const theirEarned = await db.query(`
           SELECT COALESCE(SUM(t.points), 0) as total
@@ -1101,8 +1088,7 @@ const server = http.createServer(async (req, res) => {
           JOIN tasks t ON t.id = tc.task_id
           WHERE tc.completed_by = $1
             AND (t.visible_to = $2 OR t.visible_to IS NULL)
-            AND tc.completed_on >= $3
-        `, [partnerId, userId, pStart]);
+        `, [partnerId, userId]);
 
         const theirSpent = await db.query(`
           SELECT COALESCE(SUM(i.cost), 0) as total
