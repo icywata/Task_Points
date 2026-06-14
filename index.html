@@ -1479,16 +1479,24 @@ function renderTracker() {
   renderMonthly();
   renderDaily();
   renderTotals();
-  // Populate task visibility dropdown — defaults to partner (privacy first)
+  // Populate task visibility dropdown
   const taskVisibleSel = document.getElementById('taskVisibleTo');
+  const taskVisibilityRow = document.getElementById('taskVisibilityRow');
   if (taskVisibleSel) {
-    taskVisibleSel.innerHTML = '';
-    if (currentUser.partnerId && isOwnProfile()) {
-      const partnerName = currentUser.partnerNickname || 'Partner';
-      taskVisibleSel.innerHTML = `<option value="${currentUser.partnerId}">${esc(partnerName)} only (default)</option><option value="">Everyone</option>`;
+    if (!isOwnProfile()) {
+      // Adding task to partner's profile — hide dropdown, auto-set to creator (you) only
+      taskVisibilityRow.style.display = 'none';
+      taskVisibleSel.innerHTML = `<option value="${currentUser.userId}">Me only</option>`;
     } else {
-      taskVisibleSel.innerHTML = `<option value="">Everyone</option>`;
-      if (currentUser.partnerId) taskVisibleSel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+      // Adding task to own profile — show dropdown, default to partner only
+      taskVisibilityRow.style.display = 'block';
+      taskVisibleSel.innerHTML = '';
+      if (currentUser.partnerId) {
+        const partnerName = currentUser.partnerNickname || 'Partner';
+        taskVisibleSel.innerHTML = `<option value="${currentUser.partnerId}">${esc(partnerName)} only (default)</option><option value="">Everyone</option>`;
+      } else {
+        taskVisibleSel.innerHTML = `<option value="">Everyone</option>`;
+      }
     }
   }
   // Show/hide task type buttons based on permissions
@@ -2032,7 +2040,8 @@ function addTask() {
   if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
   const requireProof = document.getElementById('requireProof').checked;
   const visibleToEl = document.getElementById('taskVisibleTo');
-  const visibleTo = visibleToEl ? (visibleToEl.value || null) : null;
+  // When adding to partner's profile, always scope to creator (you) — partner can edit later
+  const visibleTo = !isOwnProfile() ? currentUser.userId : (visibleToEl ? (visibleToEl.value || null) : null);
   let toastMsg = '';
   if(addType==='monthly'){
     const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof,visibleTo});
@@ -2102,6 +2111,8 @@ async function notifyAssigned(task, expiresOn) {
 
 // ── Task deletion helpers ──────────────────────────────────────
 async function deleteTask(taskId) {
+  // Cancel any pending save first — prevents re-inserting the deleted task
+  clearTimeout(saveTimer); saveTimer = null;
   const p = ps(viewingProfile);
   p.assigned = (p.assigned||[]).filter(t=>t.id!==taskId);
   Object.keys(p.days||{}).forEach(dk=>{ if(p.days[dk].tasks) p.days[dk].tasks = p.days[dk].tasks.filter(t=>t.id!==taskId); });
@@ -2110,8 +2121,10 @@ async function deleteTask(taskId) {
   renderTracker();
   toast('🗑 Task deleted', 'info');
   try {
-    await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    const res = await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body:JSON.stringify({ taskId, ownerProfile: viewingProfile }) });
+    const data = await res.json();
+    console.log('Delete result:', data);
     await loadFromServer();
   } catch(e) { console.error('Delete failed:', e); toast('Delete failed', 'error'); }
 }

@@ -1107,7 +1107,7 @@ const server = http.createServer(async (req, res) => {
       // Process tasks - upsert daily tasks for today
       for (const [dateKey, day] of Object.entries(myData.days || {})) {
         for (const t of (day.tasks || [])) {
-          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,visible_to,active) VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8`,
+          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,visible_to,active) VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8 WHERE tasks.active=TRUE`,
             [t.id, userId, userId, t.name, t.desc||null, t.pts, t.requireProof||false, t.visibleTo||null]);
           if (t.done) {
             await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
@@ -1127,7 +1127,7 @@ const server = http.createServer(async (req, res) => {
       // Monthly completions
       for (const [mk, tasks] of Object.entries(myData.monthly || {})) {
         for (const t of tasks) {
-          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,month_key,visible_to,active) VALUES ($1,$2,$3,'monthly',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8`,
+          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,month_key,visible_to,active) VALUES ($1,$2,$3,'monthly',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8 WHERE tasks.active=TRUE`,
             [t.id, userId, userId, t.name, t.desc||null, t.pts, mk, t.visibleTo||null]);
         }
       }
@@ -1145,7 +1145,7 @@ const server = http.createServer(async (req, res) => {
       // Repeating tasks
       for (const t of (myData.repeating || [])) {
         const deletedFrom = (myData.repeatingDeleted || {})[t.id] || null;
-        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,visible_to,active) VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,$9,TRUE) ON CONFLICT (id) DO UPDATE SET deleted_from=$8,visible_to=$9`,
+        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,visible_to,active) VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,$9,TRUE) ON CONFLICT (id) DO UPDATE SET deleted_from=$8,visible_to=$9 WHERE tasks.active=TRUE`,
           [t.id, userId, userId, t.name, t.desc||null, t.pts, t.startDate, deletedFrom, t.visibleTo||null]);
       }
       for (const [dateKey, done] of Object.entries(myData.repeatingDone || {})) {
@@ -1159,7 +1159,7 @@ const server = http.createServer(async (req, res) => {
 
       // Assigned tasks
       for (const t of (myData.assigned || [])) {
-        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,assigned_on,expires_on,require_proof,visible_to,active) VALUES ($1,$2,$3,'assigned',$4,$5,$6,$7,$8,$9,$10,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$10`,
+        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,assigned_on,expires_on,require_proof,visible_to,active) VALUES ($1,$2,$3,'assigned',$4,$5,$6,$7,$8,$9,$10,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$10 WHERE tasks.active=TRUE`,
           [t.id, userId, userId, t.name, t.desc||null, t.pts, t.assignedOn, t.expiresOn, t.requireProof||false, t.visibleTo||null]);
         if (t.completedOn) {
           await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
