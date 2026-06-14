@@ -109,6 +109,8 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'rose'`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS connect_code TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS used_invite_code TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_invite_token TEXT`,
     `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS visible_to TEXT`,
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`,
   ];
@@ -133,6 +135,23 @@ async function createSchema() {
       code TEXT NOT NULL,
       user_id TEXT,
       expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS invite_codes (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      label TEXT,
+      capacity INTEGER NOT NULL DEFAULT 200,
+      used INTEGER NOT NULL DEFAULT 0,
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS partner_invites (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_email TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      used BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS partner_requests (
@@ -675,8 +694,8 @@ const server = http.createServer(async (req, res) => {
 
       // Clear old sessions so everyone logs in fresh
       await db.query(`DELETE FROM sessions`);
-      // Mark bootstrapped users as verified
-      await db.query(`UPDATE users SET email_verified=TRUE WHERE id IN ($1,$2)`, [dadId, ggId]);
+      // Mark bootstrapped users as verified and bypass invite requirement
+      await db.query(`UPDATE users SET email_verified=TRUE, used_invite_code='bootstrap' WHERE id IN ($1,$2)`, [dadId, ggId]);
       // Scope any existing dad shop items to gg (existing items were created for her)
       await db.query(`UPDATE shop_items SET visible_to=$1 WHERE owner_id=$2 AND visible_to IS NULL`, [ggId, dadId]);
 
@@ -732,14 +751,113 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Check invite code ──────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/invite/check') {
+    try {
+      const { code } = await parseBody(req);
+      if (!code) { json(res, { valid: false, error: 'No code provided' }); return; }
+      // Check batch invite code
+      const r = await db.query(`SELECT * FROM invite_codes WHERE LOWER(code)=LOWER($1) AND active=TRUE`, [code.trim()]);
+      if (!r.rows.length) { json(res, { valid: false, error: 'Invalid invite code' }); return; }
+      const inv = r.rows[0];
+      if (inv.used >= inv.capacity) { json(res, { valid: false, error: 'Sorry, all invites have been used. Check back later!' }); return; }
+      json(res, { valid: true, type: 'batch', label: inv.label, remaining: inv.capacity - inv.used });
+    } catch(e) { json(res, { valid: false, error: e.message }); }
+    return;
+  }
+
+  // ── Check partner invite token ─────────────────────────────
+  if (req.method === 'GET' && url.startsWith('/api/invite/partner?')) {
+    try {
+      const token = new URL('http://x'+url).searchParams.get('token');
+      if (!token) { json(res, { valid: false }); return; }
+      const r = await db.query(`SELECT pi.*, u.nickname, u.username FROM partner_invites pi JOIN users u ON u.id=pi.from_user_id WHERE pi.token=$1 AND pi.used=FALSE`, [token]);
+      if (!r.rows.length) { json(res, { valid: false, error: 'Invite link is invalid or already used' }); return; }
+      json(res, { valid: true, fromUsername: r.rows[0].username, fromNickname: r.rows[0].nickname, toEmail: r.rows[0].to_email, token });
+    } catch(e) { json(res, { valid: false, error: e.message }); }
+    return;
+  }
+
+  // ── Send partner invite email ──────────────────────────────
+  if (req.method === 'POST' && url === '/api/invite/partner') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { email } = await parseBody(req);
+      if (!email) { json(res, { error: 'Email required' }, 400); return; }
+      // Check user hasn't already sent a partner invite
+      const existing = await db.query(`SELECT id FROM partner_invites WHERE from_user_id=$1 AND used=FALSE`, [userId]);
+      if (existing.rows.length) {
+        // Resend existing invite
+        await db.query(`DELETE FROM partner_invites WHERE from_user_id=$1 AND used=FALSE`, [userId]);
+      }
+      const user = await getUserById(userId);
+      const token = crypto.randomBytes(24).toString('hex');
+      await db.query(`INSERT INTO partner_invites (id,from_user_id,to_email,token) VALUES ($1,$2,$3,$4)`,
+        [uid(), userId, email.toLowerCase(), token]);
+      const inviteUrl = `${process.env.APP_URL || 'https://kinkpoints.app'}/signup?invite=${token}`;
+      const senderName = user.nickname || user.username || 'Someone';
+      await sendEmail(email, `${senderName} invited you to KinkPoints`,
+        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+          <h2 style="color:#d4537e;margin-bottom:1rem">You've been invited 💝</h2>
+          <p style="color:#b8829e;margin-bottom:1rem"><strong style="color:#f0dce8">${senderName}</strong> has invited you to join them on KinkPoints — a private app for tracking tasks, earning points, and staying connected.</p>
+          <div style="text-align:center;margin:1.5rem 0">
+            <a href="${inviteUrl}" style="background:#d4537e;color:#fff;padding:12px 28px;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px">Accept invite & sign up</a>
+          </div>
+          <p style="color:#7a5068;font-size:12px;text-align:center">This invite is just for you. Once you sign up you'll be connected automatically.</p>
+        </div>`);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Admin: create invite code ──────────────────────────────
+  if (req.method === 'POST' && url === '/api/admin/invite-code') {
+    try {
+      const { key, code, label, capacity } = await parseBody(req);
+      if (key !== 'Daemoni') { json(res, { error: 'Unauthorized' }, 401); return; }
+      await db.query(`INSERT INTO invite_codes (id,code,label,capacity) VALUES ($1,$2,$3,$4) ON CONFLICT (code) DO UPDATE SET label=$3,capacity=$4,active=TRUE`,
+        [uid(), code.toUpperCase(), label||code, capacity||200]);
+      json(res, { ok: true, code: code.toUpperCase(), capacity: capacity||200 });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Admin: list invite codes ───────────────────────────────
+  if (req.method === 'GET' && url === '/api/admin/invite-codes') {
+    try {
+      const authHeader = req.headers['x-admin-key'];
+      if (authHeader !== 'Daemoni') { json(res, { error: 'Unauthorized' }, 401); return; }
+      const r = await db.query(`SELECT * FROM invite_codes ORDER BY created_at DESC`);
+      json(res, r.rows);
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   // ── Signup ─────────────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/signup') {
     try {
-      const { firstName, username, email, password, role } = await parseBody(req);
+      const { firstName, username, email, password, role, inviteCode, partnerToken } = await parseBody(req);
       // Validate
       if (!firstName || !username || !email || !password || !role) { json(res, { error: 'All fields required' }, 400); return; }
       if (password.length < 8) { json(res, { error: 'Password must be at least 8 characters' }, 400); return; }
       if (!/^[a-z0-9_]+$/.test(username)) { json(res, { error: 'Username can only contain letters, numbers and underscores' }, 400); return; }
+
+      // Validate invite — must have either a batch code or a partner token
+      let inviteCodeId = null;
+      let partnerInviteId = null;
+      if (partnerToken) {
+        const pi = await db.query(`SELECT * FROM partner_invites WHERE token=$1 AND used=FALSE`, [partnerToken]);
+        if (!pi.rows.length) { json(res, { error: 'Invite link is invalid or already used' }, 403); return; }
+        partnerInviteId = pi.rows[0].id;
+      } else if (inviteCode) {
+        const ic = await db.query(`SELECT * FROM invite_codes WHERE LOWER(code)=LOWER($1) AND active=TRUE`, [inviteCode.trim()]);
+        if (!ic.rows.length) { json(res, { error: 'Invalid invite code' }, 403); return; }
+        if (ic.rows[0].used >= ic.rows[0].capacity) { json(res, { error: 'Sorry, all invites have been used. Check back later!' }, 403); return; }
+        inviteCodeId = ic.rows[0].id;
+      } else {
+        json(res, { error: 'An invite code or partner invite is required to sign up' }, 403); return;
+      }
       // Check email unique
       const existingEmail = await db.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [email]);
       if (existingEmail.rows.length) { json(res, { error: 'An account with that email already exists' }, 409); return; }
@@ -753,6 +871,19 @@ const server = http.createServer(async (req, res) => {
       await db.query(`INSERT INTO users (id,email,password_hash,username,first_name,nickname,role,notification_email,connect_code,email_verified)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,FALSE)`,
         [userId, email.toLowerCase(), hashPassword(password), username, firstName, username, role, email.toLowerCase(), connectCode]);
+      // Mark invite used
+      if (inviteCodeId) {
+        await db.query(`UPDATE invite_codes SET used=used+1 WHERE id=$1`, [inviteCodeId]);
+      }
+      if (partnerInviteId) {
+        await db.query(`UPDATE partner_invites SET used=TRUE WHERE id=$1`, [partnerInviteId]);
+        // Auto-send partner request from inviter to new user
+        const invRow = await db.query(`SELECT from_user_id FROM partner_invites WHERE id=$1`, [partnerInviteId]);
+        if (invRow.rows.length) {
+          await db.query(`INSERT INTO partner_requests (id,from_user_id,to_user_id,status) VALUES ($1,$2,$3,'pending') ON CONFLICT DO NOTHING`,
+            [uid(), invRow.rows[0].from_user_id, userId]);
+        }
+      }
       // Generate verification code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expires = new Date(Date.now() + 30 * 60 * 1000); // 30 min

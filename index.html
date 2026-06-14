@@ -486,7 +486,18 @@
       <div class="connect-code-label">Your connect code</div>
       <div class="connect-code-number" id="myConnectCode">—————</div>
     </div>
-    <div class="connect-divider">or enter theirs</div>
+    <div class="connect-divider">or invite by email</div>
+    <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
+      <div>
+        <label for="partnerInviteEmail">Partner's email address</label>
+        <input type="email" id="partnerInviteEmail" placeholder="their@email.com"/>
+      </div>
+      <button class="add-btn" style="background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border)" onclick="sendPartnerInviteEmail()">
+        Send invite email
+      </button>
+      <div id="inviteEmailMsg" style="font-size:13px;text-align:center;min-height:18px"></div>
+    </div>
+    <div class="connect-divider">or enter their code</div>
     <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
       <div>
         <label for="partnerCodeInput">Partner's connect code</label>
@@ -608,6 +619,7 @@
     </div>
     <div class="signup-title">Create your account</div>
     <div class="signup-sub">Free to join — takes 30 seconds</div>
+    <div id="inviteBanner" style="display:none;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:var(--radius-lg);padding:10px 14px;font-size:13px;color:var(--accent-light);text-align:center"></div>
     <div class="signup-row">
       <div class="signup-field">
         <label>First name</label>
@@ -637,6 +649,10 @@
         <option>Babyboy</option><option>Pet</option><option>Rope Bunny</option><option>Masochist</option>
         <option>Vanilla</option><option>Curious/Exploring</option>
       </select>
+    </div>
+    <div class="signup-field" id="inviteCodeField">
+      <label>Invite code</label>
+      <input type="text" id="signupInviteCode" placeholder="e.g. DISCORD2024" maxlength="20" style="text-transform:uppercase;letter-spacing:2px"/>
     </div>
     <div class="signup-error" id="signupError"></div>
     <button class="login-btn" onclick="doSignup()">Create Account</button>
@@ -958,6 +974,52 @@ async function resendResetCode() {
   } catch(e) { toast('Could not resend', 'error'); }
 }
 
+// ── Invite system ──────────────────────────────────────────────
+let pendingPartnerToken = null;
+
+async function checkInviteToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('invite');
+  if (!token) return;
+  try {
+    const res = await fetch(`/api/invite/partner?token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if (data.valid) {
+      pendingPartnerToken = token;
+      // Show signup with partner invite banner
+      showSignup();
+      const banner = document.getElementById('inviteBanner');
+      const senderName = data.fromNickname || `@${data.fromUsername}` || 'Your partner';
+      banner.textContent = `💝 ${senderName} invited you — no invite code needed!`;
+      banner.style.display = 'block';
+      document.getElementById('inviteCodeField').style.display = 'none';
+      if (data.toEmail) document.getElementById('signupEmail').value = data.toEmail;
+      // Clean URL
+      window.history.replaceState({}, '', '/');
+    }
+  } catch(e) { console.error('Token check failed:', e); }
+}
+
+async function sendPartnerInviteEmail() {
+  const email = document.getElementById('partnerInviteEmail').value.trim();
+  const msg = document.getElementById('inviteEmailMsg');
+  msg.textContent = '';
+  if (!email) { msg.style.color='#e06060'; msg.textContent='Please enter an email'; return; }
+  try {
+    const res = await fetch('/api/invite/partner', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ email }) });
+    const data = await res.json();
+    if (res.ok) {
+      msg.style.color = '#6abf6a';
+      msg.textContent = `✓ Invite sent to ${email}`;
+      document.getElementById('partnerInviteEmail').value = '';
+    } else {
+      msg.style.color = '#e06060';
+      msg.textContent = data.error || 'Something went wrong';
+    }
+  } catch(e) { msg.style.color='#e06060'; msg.textContent='Connection error'; }
+}
+
 // ── Screen switching ───────────────────────────────────────────
 function showLogin() {
   ['signupScreen','verifyScreen','forgotScreen','resetScreen'].forEach(id => document.getElementById(id).classList.add('hidden'));
@@ -984,6 +1046,7 @@ async function doSignup() {
   const email     = document.getElementById('signupEmail').value.trim();
   const password  = document.getElementById('signupPassword').value;
   const role      = document.getElementById('signupRole').value;
+  const inviteCode = document.getElementById('signupInviteCode')?.value.trim() || '';
   const errEl     = document.getElementById('signupError');
   errEl.textContent = '';
 
@@ -993,6 +1056,7 @@ async function doSignup() {
   if (!email) { errEl.textContent = 'Please enter your email'; return; }
   if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters'; return; }
   if (!role) { errEl.textContent = 'Please select your role'; return; }
+  if (!pendingPartnerToken && !inviteCode) { errEl.textContent = 'An invite code is required to sign up'; return; }
 
   const btn = document.querySelector('#signupScreen .login-btn');
   btn.textContent = 'Creating account…'; btn.disabled = true;
@@ -1000,7 +1064,9 @@ async function doSignup() {
     const res = await fetch('/api/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, username, email, password, role })
+      body: JSON.stringify({ firstName, username, email, password, role,
+        inviteCode: pendingPartnerToken ? null : inviteCode,
+        partnerToken: pendingPartnerToken || null })
     });
     const data = await res.json();
     if (res.ok) {
@@ -1130,6 +1196,7 @@ async function bootApp() {
 
 // Check if already logged in on page load
 async function checkSession() {
+  await checkInviteToken();
   try {
     const res = await fetch('/api/me', { credentials:'include' });
     if (res.ok) {
