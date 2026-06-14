@@ -89,6 +89,7 @@ async function createSchema() {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      username TEXT UNIQUE,
       first_name TEXT,
       last_name TEXT,
       nickname TEXT,
@@ -589,16 +590,16 @@ const server = http.createServer(async (req, res) => {
       // Create or update dad user
       const dadId = 'dad';
       const ggId  = 'gg';
-      await db.query(`INSERT INTO users (id,email,password_hash,first_name,last_name,nickname,role,notification_email,icon,theme)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        ON CONFLICT (id) DO UPDATE SET email=$2,password_hash=$3,first_name=$4,last_name=$5,nickname=$6,role=$7,notification_email=$8`,
-        [dadId, dad.email, hashPassword(dad.password), dad.firstName, dad.lastName, dad.nickname||'Daddy', dad.role||'Dominant',
+      await db.query(`INSERT INTO users (id,email,password_hash,username,first_name,last_name,nickname,role,notification_email,icon,theme)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        ON CONFLICT (id) DO UPDATE SET email=$2,password_hash=$3,username=COALESCE(users.username,$4),first_name=$5,last_name=$6,nickname=$7,role=$8,notification_email=$9`,
+        [dadId, dad.email, hashPassword(dad.password), 'mcduffro', dad.firstName, dad.lastName, dad.nickname||'Daddy', dad.role||'Dominant',
          dad.email, state.dad?.icon||'star', state.dad?.theme||'midnight']);
 
-      await db.query(`INSERT INTO users (id,email,password_hash,first_name,last_name,nickname,role,notification_email,icon,theme)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        ON CONFLICT (id) DO UPDATE SET email=$2,password_hash=$3,first_name=$4,last_name=$5,nickname=$6,role=$7,notification_email=$8`,
-        [ggId, gg.email, hashPassword(gg.password), gg.firstName, gg.lastName, gg.nickname||'Good Girl', gg.role||'Submissive',
+      await db.query(`INSERT INTO users (id,email,password_hash,username,first_name,last_name,nickname,role,notification_email,icon,theme)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        ON CONFLICT (id) DO UPDATE SET email=$2,password_hash=$3,username=COALESCE(users.username,$4),first_name=$5,last_name=$6,nickname=$7,role=$8,notification_email=$9`,
+        [ggId, gg.email, hashPassword(gg.password), 'lilyroh99', gg.firstName, gg.lastName, gg.nickname||'Good Girl', gg.role||'Submissive',
          gg.email, state.gg?.icon||'heart', state.gg?.theme||'rose']);
 
       // Partnership
@@ -660,6 +661,7 @@ const server = http.createServer(async (req, res) => {
       if (partnership) partnerData = await getUserById(partnership.partnerId);
       json(res, {
         userId: user.id,
+        username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
         nickname: user.nickname,
@@ -669,6 +671,7 @@ const server = http.createServer(async (req, res) => {
         email: user.notification_email,
         partnerId: partnership?.partnerId || null,
         partnershipId: partnership?.partnershipId || null,
+        partnerUsername: partnerData?.username || null,
         partnerNickname: partnerData?.nickname || null,
         partnerFirstName: partnerData?.first_name || null,
         partnerLastName: partnerData?.last_name || null,
@@ -686,9 +689,14 @@ const server = http.createServer(async (req, res) => {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
-      const { firstName, lastName, nickname, role, email, icon, theme } = await parseBody(req);
-      await db.query(`UPDATE users SET first_name=$1,last_name=$2,nickname=$3,role=$4,notification_email=$5,icon=$6,theme=$7 WHERE id=$8`,
-        [firstName, lastName, nickname, role, email, icon, theme, userId]);
+      const { firstName, lastName, nickname, role, email, icon, theme, username } = await parseBody(req);
+      // Check username uniqueness if changing
+      if (username) {
+        const existing = await db.query(`SELECT id FROM users WHERE username=$1 AND id!=$2`, [username, userId]);
+        if (existing.rows.length) { json(res, { error: 'Username already taken' }, 409); return; }
+      }
+      await db.query(`UPDATE users SET first_name=$1,last_name=$2,nickname=$3,role=$4,notification_email=$5,icon=$6,theme=$7,username=COALESCE($8,username) WHERE id=$9`,
+        [firstName, lastName, nickname, role, email, icon, theme, username||null, userId]);
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
@@ -933,6 +941,31 @@ const server = http.createServer(async (req, res) => {
       await db.query(`INSERT INTO partnership_permissions (id,partnership_id,granting_user_id,grantee_user_id,allow_tasks,allow_shop)
         VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (granting_user_id,grantee_user_id) DO UPDATE SET allow_tasks=$5,allow_shop=$6`,
         [uid(), partnership.partnershipId, userId, granteeId, allowTasks, allowShop]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Delete task ────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/task/delete') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { taskId } = await parseBody(req);
+      // Only allow deleting tasks owned by this user or assigned to this user
+      await db.query(`UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2)`, [taskId, userId]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Delete repeating task from date ───────────────────────
+  if (req.method === 'POST' && url === '/api/task/delete-from') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { taskId, fromDate } = await parseBody(req);
+      await db.query(`UPDATE tasks SET deleted_from=$1 WHERE id=$2 AND owner_id=$3`, [fromDate, taskId, userId]);
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
