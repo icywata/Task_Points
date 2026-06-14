@@ -802,7 +802,7 @@
         <div class="assigned-fields" id="assignedFields">
           <div><label for="taskExpiry">Expires on</label><input type="date" id="taskExpiry"/></div>
         </div>
-        <div class="proof-toggle-row">
+        <div id="proofToggleRow" class="proof-toggle-row">
           <span class="proof-toggle-label">Require photo proof to complete</span>
           <label class="toggle">
             <input type="checkbox" id="requireProof" onchange="toggleProofReviewer()"/>
@@ -1588,22 +1588,31 @@ function makeTaskRow(opts) {
 // ── Tracker render ─────────────────────────────────────────────
 function renderTracker() {
   const isOwn = isOwnProfile();
-  const canAddTasks = isOwn || viewedProfileGrantsTaskPerms();
   renderWeek();
   renderAssigned();
   renderMonthly();
   renderDaily();
   renderTotals();
+  // Proof toggle — only show when adding tasks to a partner's profile
+  const proofToggleRow = document.getElementById('proofToggleRow');
+  if (proofToggleRow) {
+    if (isOwnProfile()) {
+      proofToggleRow.style.display = 'none';
+      document.getElementById('requireProof').checked = false;
+      document.getElementById('proofReviewerRow').style.display = 'none';
+    } else {
+      proofToggleRow.style.display = '';
+    }
+  }
+
   // Populate task visibility dropdown
   const taskVisibleSel = document.getElementById('taskVisibleTo');
   const taskVisibilityRow = document.getElementById('taskVisibilityRow');
   if (taskVisibleSel) {
     if (!isOwnProfile()) {
-      // Adding task to partner's profile — hide dropdown, auto-set to creator (you) only
       taskVisibilityRow.style.display = 'none';
       taskVisibleSel.innerHTML = `<option value="${currentUser.userId}">Me only</option>`;
     } else {
-      // Adding task to own profile — show dropdown, default to partner only
       taskVisibilityRow.style.display = 'block';
       taskVisibleSel.innerHTML = '';
       if (currentUser.partnerId) {
@@ -1614,23 +1623,20 @@ function renderTracker() {
       }
     }
   }
-  // Show/hide task type buttons based on permissions
+  // Always show add task section and all task types — no permissions needed
   document.getElementById('addTaskSection').style.display = 'block';
-  document.getElementById('btn-daily').style.display   = canAddTasks ? '' : 'none';
-  document.getElementById('btn-repeat').style.display  = canAddTasks ? '' : 'none';
-  document.getElementById('btn-monthly').style.display = canAddTasks ? '' : 'none';
-  if (!canAddTasks && addType !== 'assigned') setType('assigned');
-  // Readonly notice — only show for non-assigned section
+  document.getElementById('btn-daily').style.display   = '';
+  document.getElementById('btn-repeat').style.display  = '';
+  document.getElementById('btn-monthly').style.display = '';
+  document.getElementById('btn-assigned').style.display = isOwnProfile() ? 'none' : '';
+  // Notice when viewing partner's profile
   const existing = document.getElementById('readonlyNotice');
   if (existing) existing.remove();
-  if (!isOwn) {
+  if (!isOwnProfile()) {
     const notice = document.createElement('div');
     notice.id = 'readonlyNotice';
     notice.className = 'readonly-notice';
-    const partnerName = currentUser.partnerNickname || 'Partner';
-    notice.textContent = canAddTasks
-      ? `Viewing ${partnerName}'s tasks — you can add tasks`
-      : `Viewing ${partnerName}'s tasks — you can assign tasks below`;
+    notice.textContent = `Viewing ${currentUser.partnerNickname || 'Partner'}'s tasks — tasks you add will default to visible to you only`;
     document.getElementById('screen-tracker').insertBefore(notice, document.getElementById('assignedList').previousElementSibling.previousElementSibling);
   }
 }

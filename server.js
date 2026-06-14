@@ -1626,7 +1626,7 @@ const server = http.createServer(async (req, res) => {
             [visibleTo||null, taskId, userId]);
         }
       } else {
-        await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3, require_proof=$4 WHERE id=$5 AND created_by=$6`,
+        await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3, require_proof=$4 WHERE id=$5 AND (created_by=$6 OR owner_id=$6)`,
           [name, desc||null, pts, requireProof||false, taskId, userId]);
       }
       json(res, { ok: true });
