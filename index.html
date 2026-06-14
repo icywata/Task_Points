@@ -1122,14 +1122,14 @@ function renderAssigned() {
     const rowExtra='assigned-row'+(expiryCls==='soon'?' expiring-soon':'');
     // Own profile = can check off. Partner's assigned tasks viewed by partner = can check. Viewing partner's profile = read only
     const canCheck = isOwnProfile() && !isExpired;
-    const isReviewer = !isOwnProfile() || !currentUser.partnerId;
-    // Can delete if: own profile, or you created it, or you're viewing partner's profile (you assigned it)
-    const canDelete = isOwnProfile() || t.createdBy === currentUser.userId || isPartnerProfile();
+    const isReviewer = !isOwnProfile(); // if viewing partner's profile, you are the reviewer
+    const canUpload = isOwnProfile(); // only the task owner uploads their own proof
+    const canDelete = isOwnProfile() || isPartnerProfile();
     const row=makeTaskRow({
       done:isDone, name:t.name, desc:t.desc, pts:t.pts, extraClass:rowExtra,
       extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'assigned',
-      proof:t.proof, canUpload:isOwnProfile(), isReviewer,
+      proof:t.proof, canUpload, isReviewer,
       onCheck:()=>{
         if (isDone){const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=null;}
         else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=selectedDate;}
@@ -2004,17 +2004,21 @@ async function rejectProof() {
 function toggleProofReviewer() {
   const checked = document.getElementById('requireProof').checked;
   const row = document.getElementById('proofReviewerRow');
-  row.style.display = checked ? 'block' : 'none';
-  if (checked) {
-    const sel = document.getElementById('proofReviewer');
-    sel.innerHTML = '';
-    // Default: partner if exists, else self
-    if (currentUser.partnerId) {
-      const partnerName = currentUser.partnerNickname || 'Partner';
-      sel.innerHTML += `<option value="${currentUser.partnerId}">${partnerName} (default)</option>`;
-    }
-    sel.innerHTML += `<option value="${currentUser.userId}">Myself</option>`;
+  // Only show reviewer dropdown for self-assigned tasks (own profile)
+  // When assigning to partner, you are always the reviewer — no choice needed
+  if (!checked || !isOwnProfile()) {
+    row.style.display = 'none';
+    return;
   }
+  row.style.display = 'block';
+  const sel = document.getElementById('proofReviewer');
+  sel.innerHTML = '';
+  // Self-assigned: default reviewer is partner (they verify you did it)
+  if (currentUser.partnerId) {
+    const partnerName = currentUser.partnerNickname || 'Partner';
+    sel.innerHTML += `<option value="${currentUser.partnerId}">${partnerName} reviews (default)</option>`;
+  }
+  sel.innerHTML += `<option value="${currentUser.userId}">I review myself</option>`;
 }
 
 function getProofViewerIds(taskOwnerProfile) {
