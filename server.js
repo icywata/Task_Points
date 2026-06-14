@@ -185,7 +185,7 @@ function parseCookies(req) {
 }
 
 function setCookieHeader(token) {
-  return `session=${token}; HttpOnly; Path=/; Max-Age=${30*24*60*60}; SameSite=Lax`;
+  return `session=${token}; HttpOnly; Path=/; Max-Age=${30*24*60*60}; SameSite=Lax; Secure`;
 }
 
 // ── Auth middleware ────────────────────────────────────────────
@@ -419,18 +419,29 @@ const server = http.createServer(async (req, res) => {
     try {
       const { email, password } = await parseBody(req);
       const state = await readData();
-      // Find user by email
+      console.log(`Login attempt: ${email}`);
+      // Only check known user profile keys, skip metadata keys
+      const USER_KEYS = ['gg', 'dad'];
       let userId = null;
-      for (const [key, profile] of Object.entries(state)) {
-        if (key.startsWith('_')) continue;
-        if (profile && profile.notificationEmail && profile.notificationEmail.toLowerCase() === email.toLowerCase()) {
-          if (profile.passwordHash === hashPassword(password)) {
+      for (const key of USER_KEYS) {
+        const profile = state[key];
+        if (profile && profile.notificationEmail &&
+            profile.notificationEmail.toLowerCase() === email.toLowerCase()) {
+          const attemptHash = hashPassword(password);
+          const storedHash = profile.passwordHash;
+          console.log(`Found profile ${key}, hash match: ${attemptHash === storedHash}`);
+          console.log(`Stored hash exists: ${!!storedHash}`);
+          if (attemptHash === storedHash) {
             userId = key;
             break;
           }
         }
       }
-      if (!userId) { json(res, { error: 'Invalid email or password' }, 401); return; }
+      if (!userId) { 
+        console.log(`Login failed for: ${email}`);
+        json(res, { error: 'Invalid email or password' }, 401); return; 
+      }
+      console.log(`Login success: ${userId}`);
       const token = await createSession(userId);
       res.writeHead(200, {
         'Content-Type': 'application/json',
