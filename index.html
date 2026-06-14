@@ -644,7 +644,9 @@ async function doLogin() {
   btn.textContent = 'Signing in…'; btn.disabled = true;
   try {
     const res = await fetch('/api/login', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include',
       body: JSON.stringify({ email, password })
     });
     const data = await res.json();
@@ -654,7 +656,8 @@ async function doLogin() {
       showLoginError(data.error || 'Invalid email or password');
     }
   } catch(e) {
-    showLoginError('Could not reach server');
+    console.error('Login error:', e);
+    showLoginError('Connection error — ' + e.message);
   }
   btn.textContent = 'Sign In'; btn.disabled = false;
 }
@@ -677,7 +680,7 @@ async function doLogout() {
 
 async function bootApp() {
   // Get current user info
-  const res = await fetch('/api/me');
+  const res = await fetch('/api/me', { credentials:'include' });
   if (!res.ok) { return; } // not logged in
   currentUser = await res.json();
 
@@ -696,11 +699,11 @@ async function bootApp() {
 // Check if already logged in on page load
 async function checkSession() {
   try {
-    const res = await fetch('/api/me');
+    const res = await fetch('/api/me', { credentials:'include' });
     if (res.ok) {
       await bootApp();
     }
-  } catch(e) {}
+  } catch(e) { console.error('Session check failed:', e); }
 }
 
 function applyTheme(userId) {
@@ -804,7 +807,7 @@ async function loadFromServer() {
 async function saveToServer() {
   setSync('syncing','Saving…');
   try {
-    const res = await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
+    const res = await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(state)});
     if (!res.ok) throw new Error();
     setSync('saved','Saved');
   } catch(e) { setSync('error','Save failed'); }
