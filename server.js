@@ -1366,13 +1366,21 @@ const server = http.createServer(async (req, res) => {
       // Process tasks - upsert daily tasks for today
       for (const [dateKey, day] of Object.entries(myData.days || {})) {
         for (const t of (day.tasks || [])) {
-          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,visible_to,active) VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8 WHERE tasks.active=TRUE`,
+          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,visible_to,active)
+            VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,$8,TRUE)
+            ON CONFLICT (id) DO UPDATE SET visible_to=$8, require_proof=$7 WHERE tasks.active=TRUE`,
             [t.id, userId, userId, t.name, t.desc||null, t.pts, t.requireProof||false, t.visibleTo||null]);
           if (t.done) {
-            await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+            await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on)
+              VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
               [uid(), t.id, userId, dateKey]);
           } else {
-            await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND completed_on=$3`, [t.id, userId, dateKey]);
+            // Delete any completion for this task on this date
+            await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND completed_on=$3`,
+              [t.id, userId, dateKey]);
+            // Also delete completions without proof approval (handles case where user unchecked)
+            await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND (proof_status IS NULL OR proof_status != 'approved')`,
+              [t.id, userId]);
           }
           if (t.proof?.key) {
             await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)

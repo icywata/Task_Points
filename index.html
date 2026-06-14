@@ -484,17 +484,17 @@
 <div class="connect-modal hidden" id="connectModal">
   <button class="connect-close" onclick="closeConnect()">✕</button>
   <div class="connect-card">
-    <h2>Add a Partner</h2>
-    <p>Share your connect code with someone, or enter theirs to send a partner request.</p>
+    <h2>Add a Friend</h2>
+    <p>Share your friend code or invite someone by email to connect with them.</p>
     <div class="connect-code-display">
-      <div class="connect-code-label">Your connect code</div>
+      <div class="connect-code-label">Your friend code</div>
       <div class="connect-code-number" id="myConnectCode">—————</div>
     </div>
-    <div class="connect-divider">or invite by email</div>
+    <div class="connect-divider">invite by email</div>
     <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
       <div>
-        <label for="partnerInviteEmail">Partner's email address</label>
-        <input type="email" id="partnerInviteEmail" placeholder="their@email.com"/>
+        <label for="partnerInviteEmail">Friend's email address</label>
+        <input type="email" id="partnerInviteEmail" placeholder="their@email.com" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box"/>
       </div>
       <button class="add-btn" style="background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border)" onclick="sendPartnerInviteEmail()">
         Send invite email
@@ -504,10 +504,10 @@
     <div class="connect-divider">or enter their code</div>
     <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
       <div>
-        <label for="partnerCodeInput">Partner's connect code</label>
-        <input type="text" id="partnerCodeInput" placeholder="e.g. 48291" maxlength="6" style="text-align:center;font-size:22px;letter-spacing:4px;font-weight:700"/>
+        <label for="partnerCodeInput">Their friend code</label>
+        <input type="text" id="partnerCodeInput" placeholder="e.g. 48291" maxlength="6" style="text-align:center;font-size:22px;letter-spacing:4px;font-weight:700;width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;padding:10px 12px;outline:none;box-sizing:border-box"/>
       </div>
-      <button class="add-btn" onclick="sendPartnerRequest()">Send partner request</button>
+      <button class="add-btn" onclick="sendPartnerRequest()">Send friend request</button>
       <div id="connectMsg" style="font-size:13px;text-align:center;min-height:18px"></div>
     </div>
   </div>
@@ -694,7 +694,7 @@
     <div class="top-bar-right">
       <button class="album-btn" id="connectBtn" onclick="openConnect()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-        Add Partner
+        Add Friend
       </button>
       <button class="album-btn" onclick="openAlbum()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -888,9 +888,9 @@
       <div id="profileSavedMsg" style="font-size:12px;color:#6abf6a;min-height:16px;text-align:center"></div>
       <hr class="divider" style="margin:8px 0"/>
       <div class="section-head" style="margin-bottom:8px">Change password</div>
-      <div><label for="profileCurrentPw">Current password</label><input type="password" id="profileCurrentPw" placeholder="Current password"/></div>
-      <div><label for="profileNewPw">New password</label><input type="password" id="profileNewPw" placeholder="At least 8 characters"/></div>
-      <div><label for="profileNewPw2">Confirm new password</label><input type="password" id="profileNewPw2" placeholder="Repeat new password"/></div>
+      <div><label for="profileCurrentPw">Current password</label><input type="password" id="profileCurrentPw" placeholder="Current password" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box"/></div>
+      <div><label for="profileNewPw">New password</label><input type="password" id="profileNewPw" placeholder="At least 8 characters" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box"/></div>
+      <div><label for="profileNewPw2">Confirm new password</label><input type="password" id="profileNewPw2" placeholder="Repeat new password" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box"/></div>
       <button class="add-btn" style="background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border)" onclick="changePassword()">Change password</button>
       <div id="pwChangeMsg" style="font-size:12px;min-height:16px;text-align:center"></div>
     </div>
@@ -1700,7 +1700,7 @@ function renderMonthly() {
     const canCheck=isOwnProfile();
     const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:canDelete,taskRef:t,visibleTo:t.visibleTo,
-      onCheck:()=>{if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};ps().monthlyDone[mk][t.id]=isDone?null:selectedDate;scheduleSave();renderTracker();},
+      onCheck:()=>{if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};ps().monthlyDone[mk][t.id]=isDone?null:selectedDate;scheduleSave();renderTracker();loadBalances().then(()=>renderTotals());},
       onDelete:()=>{ deleteTask(t.id); }
     });
     list.appendChild(row);
@@ -1718,7 +1718,7 @@ function renderDaily() {
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'repeat-row',
       checkDisabled:!canCheck,showDelete:canDelete,taskRef:t,visibleTo:t.visibleTo,
       extraButtons:isOwnProfile()?`<button class="task-delete-future">Del future</button>`:'',
-      onCheck:()=>{if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};ps().repeatingDone[selectedDate][t.id]=!isDone;scheduleSave();renderTracker();},
+      onCheck:()=>{if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};ps().repeatingDone[selectedDate][t.id]=!isDone;scheduleSave();renderTracker();loadBalances().then(()=>renderTotals());},
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
     });
     if (isOwnProfile()) {
@@ -1737,7 +1737,14 @@ function renderDaily() {
       checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'daily',
       proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
-      onCheck:()=>{ getDayTasks(selectedDate)[i].done^=true; scheduleSave();renderTracker(); },
+      onCheck:()=>{
+        const task = getDayTasks(selectedDate)[i];
+        task.done = !task.done;
+        if (!task.done) task.proof = null;
+        scheduleSave(); renderTracker();
+        // Refresh partnership balances in background after check
+        loadBalances().then(() => renderTotals());
+      },
       onDelete:()=>{ deleteTask(t.id); }
     });
     list.appendChild(row);
@@ -1766,16 +1773,17 @@ function renderWeek() {
 }
 
 function renderTotals() {
-  const partnerId = isOwnProfile() ? currentUser.partnerId : currentUser.userId;
-  const viewPartnerId = isOwnProfile() ? currentUser.partnerId : viewingProfile;
+  // Calculate day points from local state instantly
+  document.getElementById('totalPts').textContent = getDayPoints(selectedDate);
+  document.getElementById('totalLabel').textContent = selectedDate===getTodayKey() ? 'Points earned today' : 'Points earned';
 
+  // Partnership balance from server-loaded partnershipBalances
   let earned, spent, balance;
   if (isOwnProfile() && currentUser.partnerId) {
     earned  = getEarnedWith(currentUser.partnerId);
     spent   = getSpentWith(currentUser.partnerId);
     balance = getBalanceWith(currentUser.partnerId);
   } else if (!isOwnProfile()) {
-    // Viewing partner's profile — show their balance with us
     const theirBalances = state._partnerBalances || {};
     earned  = theirBalances.earned  || 0;
     spent   = theirBalances.spent   || 0;
@@ -1784,11 +1792,9 @@ function renderTotals() {
     earned = 0; spent = 0; balance = 0;
   }
 
-  document.getElementById('totalPts').textContent = getDayPoints(selectedDate);
   document.getElementById('alltimePts').textContent = balance;
   const earnedEl = document.getElementById('alltimeEarned');
   earnedEl.textContent = spent > 0 ? `${earned} earned · ${spent} spent` : `${earned} pts earned`;
-  document.getElementById('totalLabel').textContent = selectedDate===getTodayKey() ? 'Points earned today' : 'Points earned';
   const viewingName = isOwnProfile() ? 'Your' : (currentUser.partnerNickname||'Partner')+"'s";
   const withName = isOwnProfile()
     ? (currentUser.partnerNickname ? ` with ${currentUser.partnerNickname}` : '')
