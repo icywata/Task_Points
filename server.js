@@ -109,6 +109,7 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'rose'`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS connect_code TEXT`,
+    `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS visible_to TEXT`,
   ];
   for (const sql of alterCols) {
     try { await db.query(sql); } catch(e) {}
@@ -213,6 +214,7 @@ async function createSchema() {
       name TEXT NOT NULL,
       description TEXT,
       cost INTEGER NOT NULL,
+      visible_to TEXT REFERENCES users(id),
       active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -673,6 +675,8 @@ const server = http.createServer(async (req, res) => {
       await db.query(`DELETE FROM sessions`);
       // Mark bootstrapped users as verified
       await db.query(`UPDATE users SET email_verified=TRUE WHERE id IN ($1,$2)`, [dadId, ggId]);
+      // Scope any existing dad shop items to gg (existing items were created for her)
+      await db.query(`UPDATE shop_items SET visible_to=$1 WHERE owner_id=$2 AND visible_to IS NULL`, [ggId, dadId]);
 
       json(res, { ok: true, message: 'Migration complete! All data preserved. Please log in again.' });
     } catch(e) {
@@ -987,9 +991,15 @@ const server = http.createServer(async (req, res) => {
         });
 
         // Shop items
+        // Owner sees ALL their items (for management)
+        // Partner sees only items scoped to them or to everyone (null)
         p.shop = [];
-        const shopItems = await db.query(`SELECT * FROM shop_items WHERE owner_id=$1 AND active=TRUE ORDER BY created_at`, [uid]);
-        p.shop = shopItems.rows.map(i => ({ id:i.id, name:i.name, desc:i.description, cost:i.cost }));
+        const shopQuery = uid === userId
+          ? `SELECT * FROM shop_items WHERE owner_id=$1 AND active=TRUE ORDER BY created_at`
+          : `SELECT * FROM shop_items WHERE owner_id=$1 AND active=TRUE AND (visible_to IS NULL OR visible_to=$2) ORDER BY created_at`;
+        const shopParams = uid === userId ? [uid] : [uid, userId];
+        const shopItems = await db.query(shopQuery, shopParams);
+        p.shop = shopItems.rows.map(i => ({ id:i.id, name:i.name, desc:i.description, cost:i.cost, visibleTo:i.visible_to }));
 
         // Inventory — items this user redeemed
         p.inventory = [];
@@ -1159,8 +1169,8 @@ const server = http.createServer(async (req, res) => {
 
       // Shop items
       for (const item of (myData.shop || [])) {
-        await db.query(`INSERT INTO shop_items (id,owner_id,name,description,cost,active) VALUES ($1,$2,$3,$4,$5,TRUE) ON CONFLICT (id) DO NOTHING`,
-          [item.id, userId, item.name, item.desc||null, item.cost]);
+        await db.query(`INSERT INTO shop_items (id,owner_id,name,description,cost,visible_to,active) VALUES ($1,$2,$3,$4,$5,$6,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$6`,
+          [item.id, userId, item.name, item.desc||null, item.cost, item.visibleTo||null]);
       }
 
       // Inventory
@@ -1286,6 +1296,19 @@ const server = http.createServer(async (req, res) => {
     try {
       const r = await db.query(`SELECT id, name, type, owner_id, created_by, active FROM tasks WHERE owner_id=$1 OR created_by=$1 ORDER BY created_at DESC LIMIT 20`, [userId]);
       json(res, { userId, tasks: r.rows });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Update shop item ───────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/shop/update') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { id, name, desc, cost, visibleTo } = await parseBody(req);
+      await db.query(`UPDATE shop_items SET name=$1, description=$2, cost=$3, visible_to=$4 WHERE id=$5 AND owner_id=$6`,
+        [name, desc||null, cost, visibleTo||null, id, userId]);
+      json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
   }

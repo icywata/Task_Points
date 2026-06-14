@@ -145,6 +145,12 @@
   .logout-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-muted);font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer;transition:all .15s}
   .logout-btn:hover{border-color:var(--accent-mid);color:var(--accent-light)}
 
+  /* ── Shop item edit modal ── */
+  .edit-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+  .edit-modal.hidden{display:none}
+  .edit-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;width:100%;max-width:400px;display:flex;flex-direction:column;gap:12px}
+  .edit-card h3{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+
   /* ── Connect modal ── */
   .connect-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;gap:1rem}
   .connect-modal.hidden{display:none}
@@ -431,6 +437,23 @@
 </head>
 <body class="theme-default">
 <div id="toastContainer"></div>
+
+<!-- Shop item edit modal -->
+<div class="edit-modal hidden" id="shopEditModal">
+  <div class="edit-card">
+    <h3>Edit reward</h3>
+    <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
+      <div><label for="editRewardName">Name</label><input type="text" id="editRewardName" maxlength="80"/></div>
+      <div><label for="editRewardDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="editRewardDesc" rows="2" maxlength="200"></textarea></div>
+      <div><label for="editRewardVisibleTo">Visible to</label><select id="editRewardVisibleTo"></select></div>
+      <div><label for="editRewardCost">Point cost</label><input type="number" id="editRewardCost" min="1" max="99999"/></div>
+      <div style="display:flex;gap:10px">
+        <button class="add-btn" style="flex:1" onclick="saveRewardEdit()">Save changes</button>
+        <button class="add-btn" style="flex:0;padding:0 16px;background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border)" onclick="closeRewardEdit()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Connect modal -->
 <div class="connect-modal hidden" id="connectModal">
@@ -1596,16 +1619,23 @@ function renderShop() {
       myShop.forEach(item => {
         const el = document.createElement('div');
         el.className = 'shop-item';
+        const scopeLabel = item.visibleTo
+          ? (item.visibleTo === currentUser.partnerId ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>` : `<span class="section-badge assigned" style="font-size:9px">🔒 Private</span>`)
+          : `<span class="section-badge repeat" style="font-size:9px">Everyone</span>`;
         el.innerHTML = `
           <div class="shop-item-body">
             <div class="shop-item-name">${esc(item.name)}</div>
             ${item.desc?`<div class="shop-item-desc">${esc(item.desc)}</div>`:''}
+            <div style="margin-top:4px">${scopeLabel}</div>
           </div>
           <div class="shop-item-right">
             <span class="shop-cost">${item.cost} pts</span>
+            <button class="shop-delete" title="Edit" style="color:var(--text-muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
             <button class="shop-delete">${trashSVG()}</button>
           </div>`;
-        el.querySelector('.shop-delete').onclick = () => {
+        const btns = el.querySelectorAll('.shop-delete');
+        btns[0].onclick = () => openRewardEdit(item);
+        btns[1].onclick = () => {
           ps(currentUser.userId).shop = ps(currentUser.userId).shop.filter(x=>x.id!==item.id);
           scheduleSave(); renderShop();
         };
@@ -1617,11 +1647,16 @@ function renderShop() {
     // Add reward form
     content.innerHTML += `<hr class="divider"/>`;
     const formDiv = document.createElement('div');
+    // Build partner options for visibility selector
+    const partnerOptions = currentUser.partnerId
+      ? `<option value="">Everyone</option><option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`
+      : `<option value="">Everyone</option>`;
     formDiv.innerHTML = `
       <div class="section-head">Add a reward to your shop</div>
       <div class="add-form">
         <div><label for="rewardName">Reward name</label><input type="text" id="rewardName" placeholder="e.g. Cook dinner" maxlength="80"/></div>
         <div><label for="rewardDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="rewardDesc" rows="2" placeholder="Any details…" maxlength="200"></textarea></div>
+        <div><label for="rewardVisibleTo">Visible to</label><select id="rewardVisibleTo">${partnerOptions}</select></div>
         <div class="form-row">
           <div><label for="rewardCost">Point cost</label><input type="number" id="rewardCost" placeholder="50" min="1" max="99999"/></div>
           <div style="display:flex;flex-direction:column;justify-content:flex-end">
@@ -1951,13 +1986,16 @@ function addReward() {
   const name=document.getElementById('rewardName').value.trim();
   const desc=document.getElementById('rewardDesc').value.trim();
   const cost=parseInt(document.getElementById('rewardCost').value);
+  const visibleToEl = document.getElementById('rewardVisibleTo');
+  const visibleTo = visibleToEl ? (visibleToEl.value || null) : null;
   if(!name){document.getElementById('rewardName').focus();return;}
   if(!cost||cost<1){document.getElementById('rewardCost').focus();return;}
   const targetId = isOwnProfile() ? currentUser.userId : viewingProfile;
-  ps(targetId).shop.push({id:uid(),name,desc,cost});
+  ps(targetId).shop.push({id:uid(),name,desc,cost,visibleTo});
   document.getElementById('rewardName').value='';
   document.getElementById('rewardDesc').value='';
   document.getElementById('rewardCost').value='';
+  if(visibleToEl) visibleToEl.value='';
   scheduleSave();renderShop();
   toast('🎁 Reward added to shop', 'success');
 }
@@ -2016,6 +2054,52 @@ function toast(message, type='info', duration=2800) {
   container.appendChild(el);
   setTimeout(() => el.remove(), duration + 300);
 }
+// ── Shop item editing ──────────────────────────────────────────
+let editingRewardId = null;
+
+function openRewardEdit(item) {
+  editingRewardId = item.id;
+  document.getElementById('editRewardName').value = item.name || '';
+  document.getElementById('editRewardDesc').value = item.desc || '';
+  document.getElementById('editRewardCost').value = item.cost || '';
+  const sel = document.getElementById('editRewardVisibleTo');
+  sel.innerHTML = `<option value="">Everyone</option>`;
+  if (currentUser.partnerId) {
+    sel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+  }
+  sel.value = item.visibleTo || '';
+  document.getElementById('shopEditModal').classList.remove('hidden');
+  document.getElementById('editRewardName').focus();
+}
+
+function closeRewardEdit() {
+  document.getElementById('shopEditModal').classList.add('hidden');
+  editingRewardId = null;
+}
+
+async function saveRewardEdit() {
+  if (!editingRewardId) return;
+  const name      = document.getElementById('editRewardName').value.trim();
+  const desc      = document.getElementById('editRewardDesc').value.trim();
+  const cost      = parseInt(document.getElementById('editRewardCost').value);
+  const visibleTo = document.getElementById('editRewardVisibleTo').value || null;
+  if (!name) { document.getElementById('editRewardName').focus(); return; }
+  if (!cost || cost < 1) { document.getElementById('editRewardCost').focus(); return; }
+  const shop = ps(currentUser.userId).shop;
+  const idx = shop.findIndex(i => i.id === editingRewardId);
+  if (idx >= 0) shop[idx] = { ...shop[idx], name, desc, cost, visibleTo };
+  try {
+    await fetch('/api/shop/update', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ id: editingRewardId, name, desc, cost, visibleTo })
+    });
+    toast('✓ Reward updated', 'success');
+  } catch(e) { toast('Save failed', 'error'); }
+  closeRewardEdit();
+  scheduleSave();
+  renderShop();
+}
+
 function openConnect() {
   document.getElementById('myConnectCode').textContent = currentUser.connectCode || '—————';
   document.getElementById('partnerCodeInput').value = '';
