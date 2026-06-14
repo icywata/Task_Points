@@ -66,6 +66,9 @@ function hashPassword(password) {
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
+function uid() {
+  return crypto.randomBytes(4).toString('hex');
+}
 
 // ── Email via Resend ───────────────────────────────────────────
 async function sendEmail(to, subject, html) {
@@ -504,7 +507,7 @@ const server = http.createServer(async (req, res) => {
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       const body = await parseBody(req);
-      const { firstName, lastName, nickname, role, email, icon } = body;
+      const { firstName, lastName, nickname, role, email, icon, theme } = body;
       const state = await readData();
       if (!state[userId]) state[userId] = {};
       if (firstName !== undefined) state[userId].firstName = firstName;
@@ -513,6 +516,7 @@ const server = http.createServer(async (req, res) => {
       if (role      !== undefined) state[userId].role      = role;
       if (email     !== undefined) state[userId].notificationEmail = email;
       if (icon      !== undefined) state[userId].icon      = icon;
+      if (theme     !== undefined) state[userId].theme     = theme;
       await writeData(state);
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
@@ -552,7 +556,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/proof/upload') {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
-    if (!s3Client) { json(res, { error: 'Photo storage not configured' }, 503); return; }
+    if (!s3Client) { 
+      console.error('Upload attempted but R2 not configured');
+      json(res, { error: 'Photo storage not configured on server' }, 503); return; 
+    }
+    console.log('Upload request from:', userId);
 
     // Read multipart body — simple raw buffer approach
     const chunks = [];
@@ -587,8 +595,8 @@ const server = http.createServer(async (req, res) => {
 
         json(res, { ok: true, key });
       } catch(e) {
-        console.error('Upload error:', e.message);
-        json(res, { error: e.message }, 500);
+        console.error('Upload error full:', e);
+        json(res, { error: e.message || 'Upload failed' }, 500);
       }
     });
     return;

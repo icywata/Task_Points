@@ -9,26 +9,85 @@
   :root{--radius-md:10px;--radius-lg:14px;--radius-xl:18px}
 
   /* ── Themes ── */
-  body.theme-gg{
+  /* Rose (default — warm pink) */
+  body.theme-rose, body.theme-default {
     --bg-page:#1a1118;--bg-surface:#221620;--bg-card:#2a1c27;--bg-input:#1f1520;--bg-done:#2d1a28;
     --border:#4a2e42;--border-light:#3a2235;
     --accent-light:#f4c0d1;--accent-mid:#d4537e;--accent-deep:#993556;
     --accent-bg:#3d1f32;--accent-bg-lite:#4d2840;--accent-border:#5c2040;
     --text-primary:#f0dce8;--text-secondary:#b8829e;--text-muted:#7a5068;--text-done:#7a5068;
   }
-  body.theme-dad{
+  /* Midnight (dark navy blue) */
+  body.theme-midnight {
     --bg-page:#111620;--bg-surface:#161d2b;--bg-card:#1c2535;--bg-input:#141b28;--bg-done:#182030;
     --border:#2a3d5a;--border-light:#1f3048;
     --accent-light:#a8c8f0;--accent-mid:#4a90d9;--accent-deep:#2d6aad;
     --accent-bg:#172340;--accent-bg-lite:#1e2e50;--accent-border:#1a3a6e;
     --text-primary:#daeaf8;--text-secondary:#7aa8cc;--text-muted:#4a6a88;--text-done:#4a6a88;
   }
-  body.theme-default{
+  /* Ember (deep red/crimson) */
+  body.theme-ember {
+    --bg-page:#1a1010;--bg-surface:#221515;--bg-card:#2a1818;--bg-input:#1f1212;--bg-done:#2d1515;
+    --border:#4a2020;--border-light:#3a1818;
+    --accent-light:#f4b8b8;--accent-mid:#d94040;--accent-deep:#a02828;
+    --accent-bg:#3d1515;--accent-bg-lite:#4d1e1e;--accent-border:#5c1818;
+    --text-primary:#f0d8d8;--text-secondary:#c08080;--text-muted:#7a4040;--text-done:#7a4040;
+  }
+  /* Forest (dark green) */
+  body.theme-forest {
+    --bg-page:#101a12;--bg-surface:#152018;--bg-card:#1a2a1e;--bg-input:#121f15;--bg-done:#182a1c;
+    --border:#254a2e;--border-light:#1c3a22;
+    --accent-light:#a8e0b8;--accent-mid:#3aad60;--accent-deep:#237a3f;
+    --accent-bg:#142a1c;--accent-bg-lite:#1c3d28;--accent-border:#1a5c30;
+    --text-primary:#d8f0e0;--text-secondary:#78b890;--text-muted:#4a7a5a;--text-done:#4a7a5a;
+  }
+  /* Violet (deep purple) */
+  body.theme-violet {
+    --bg-page:#13101a;--bg-surface:#1a1522;--bg-card:#221c2e;--bg-input:#171220;--bg-done:#1e182a;
+    --border:#3a2a5a;--border-light:#2a1e48;
+    --accent-light:#c8a8f0;--accent-mid:#8040d9;--accent-deep:#5a28ad;
+    --accent-bg:#231540;--accent-bg-lite:#2e1e50;--accent-border:#3a1a6e;
+    --text-primary:#e8d8f8;--text-secondary:#9870cc;--text-muted:#5a4088;--text-done:#5a4088;
+  }
+  /* Gold (warm amber) */
+  body.theme-gold {
+    --bg-page:#1a1608;--bg-surface:#221e0c;--bg-card:#2a2510;--bg-input:#1f1a08;--bg-done:#2a2210;
+    --border:#4a3e10;--border-light:#3a300c;
+    --accent-light:#f4e0a0;--accent-mid:#d4a020;--accent-deep:#a07010;
+    --accent-bg:#3d3008;--accent-bg-lite:#4d3e10;--accent-border:#5c4810;
+    --text-primary:#f8f0d0;--text-secondary:#c0a050;--text-muted:#7a6030;--text-done:#7a6030;
+  }
+  /* Slate (cool grey-blue) */
+  body.theme-slate {
+    --bg-page:#111318;--bg-surface:#16181f;--bg-card:#1c1f28;--bg-input:#141620;--bg-done:#181c25;
+    --border:#2a2f40;--border-light:#1f2435;
+    --accent-light:#b8c8e0;--accent-mid:#6080b0;--accent-deep:#405880;
+    --accent-bg:#181f30;--accent-bg-lite:#202840;--accent-border:#1a2850;
+    --text-primary:#d8e0f0;--text-secondary:#7890b0;--text-muted:#485870;--text-done:#485870;
+  }
+  /* Teal (electric teal/cyan) */
+  body.theme-teal {
+    --bg-page:#0e1a1a;--bg-surface:#122020;--bg-card:#182828;--bg-input:#101e1e;--bg-done:#162525;
+    --border:#1e4848;--border-light:#183838;
+    --accent-light:#90e8e0;--accent-mid:#20b8b0;--accent-deep:#108880;
+    --accent-bg:#102828;--accent-bg-lite:#183838;--accent-border:#106060;
+    --text-primary:#d0f0ee;--text-secondary:#60a8a4;--text-muted:#386860;--text-done:#386860;
+  }
+
+  /* Legacy aliases so existing gg/dad profile data still works */
+  body.theme-gg { /* same as rose */ 
     --bg-page:#1a1118;--bg-surface:#221620;--bg-card:#2a1c27;--bg-input:#1f1520;--bg-done:#2d1a28;
     --border:#4a2e42;--border-light:#3a2235;
     --accent-light:#f4c0d1;--accent-mid:#d4537e;--accent-deep:#993556;
     --accent-bg:#3d1f32;--accent-bg-lite:#4d2840;--accent-border:#5c2040;
     --text-primary:#f0dce8;--text-secondary:#b8829e;--text-muted:#7a5068;--text-done:#7a5068;
+  }
+  body.theme-dad { /* same as midnight */
+    --bg-page:#111620;--bg-surface:#161d2b;--bg-card:#1c2535;--bg-input:#141b28;--bg-done:#182030;
+    --border:#2a3d5a;--border-light:#1f3048;
+    --accent-light:#a8c8f0;--accent-mid:#4a90d9;--accent-deep:#2d6aad;
+    --accent-bg:#172340;--accent-bg-lite:#1e2e50;--accent-border:#1a3a6e;
+    --text-primary:#daeaf8;--text-secondary:#7aa8cc;--text-muted:#4a6a88;--text-done:#4a6a88;
   }
 
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-page);color:var(--text-primary);min-height:100vh;padding:2rem 1rem 4rem;transition:background .3s,color .3s}
@@ -265,6 +324,14 @@
   .fulfil-btn:hover{background:var(--accent-bg)}
   .fulfilled-badge{font-size:11px;font-weight:600;color:var(--text-muted);padding:3px 8px;border-radius:20px;background:var(--bg-done);border:1px solid var(--border-light)}
 
+  /* ── Theme picker ── */
+  .theme-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .theme-opt{width:36px;height:36px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .15s,border-color .15s;position:relative;flex-shrink:0}
+  .theme-opt:hover{transform:scale(1.15)}
+  .theme-opt.selected{border-color:#fff;transform:scale(1.15)}
+  .theme-opt.selected::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .theme-label{font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text-muted);margin-top:6px;text-align:center;width:100%}
+
   /* ── Icon picker ── */
   .icon-picker{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:4px}
   .icon-opt{width:100%;aspect-ratio:1;border-radius:var(--radius-md);border:1.5px solid var(--border);background:var(--bg-input);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;padding:6px}
@@ -481,6 +548,10 @@
         <div><label for="profileLastName">Last name</label><input type="text" id="profileLastName" placeholder="Last name" maxlength="40"/></div>
       </div>
       <div><label for="profileNickname">Nickname <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">shown on tab</span></label><input type="text" id="profileNickname" placeholder="e.g. Daddy" maxlength="30"/></div>
+      <div>
+        <label>Theme color</label>
+        <div class="theme-picker" id="themePicker"></div>
+      </div>
       <div>
         <label>Profile icon</label>
         <div class="icon-picker" id="iconPicker"></div>
@@ -819,7 +890,7 @@ function makeTaskRow(opts) {
             opts.onCheck(key); // pass key to completion handler
           } catch(err) {
             console.error('Upload failed:', err);
-            alert('Photo upload failed — please try again');
+            alert('Photo upload failed: ' + err.message);
           }
           checkEl.style.opacity = '';
         };
@@ -1283,6 +1354,7 @@ function renderProfile() {
   document.querySelectorAll('#screen-profile .section-head').forEach(el=>el.style.display='');
   document.querySelector('#screen-profile .add-form').style.display='';
   renderIconPicker(icon);
+  renderThemePicker(p.theme || 'rose');
 }
 
 function renderPartnerProfileView() {
@@ -1344,17 +1416,20 @@ async function saveProfile() {
   const role      = document.getElementById('profileRole').value;
   const email     = document.getElementById('profileEmail').value.trim();
   const icon      = selectedIcon;
+  const theme     = selectedTheme;
   try {
-    await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({firstName,lastName,nickname,role,email,icon})});
+    await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({firstName,lastName,nickname,role,email,icon,theme})});
     ps(currentUser.userId).firstName = firstName;
     ps(currentUser.userId).lastName  = lastName;
     ps(currentUser.userId).nickname  = nickname;
     ps(currentUser.userId).role      = role;
     ps(currentUser.userId).notificationEmail = email;
     ps(currentUser.userId).icon      = icon;
+    ps(currentUser.userId).theme     = theme;
     currentUser.nickname = nickname;
     currentUser.role     = role;
     currentUser.icon     = icon;
+    currentUser.theme    = theme;
     scheduleSave();
     renderProfile();
     renderProfileSwitcher();
@@ -1425,6 +1500,48 @@ document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key
 
 // ── Poll every 30s ─────────────────────────────────────────────
 setInterval(()=>{if(!saveTimer&&currentUser)loadFromServer();},30000);
+
+// ── Themes ─────────────────────────────────────────────────────
+const THEMES = {
+  rose:     { label: 'Rose',     swatch: '#d4537e' },
+  midnight: { label: 'Midnight', swatch: '#4a90d9' },
+  ember:    { label: 'Ember',    swatch: '#d94040' },
+  forest:   { label: 'Forest',   swatch: '#3aad60' },
+  violet:   { label: 'Violet',   swatch: '#8040d9' },
+  gold:     { label: 'Gold',     swatch: '#d4a020' },
+  slate:    { label: 'Slate',    swatch: '#6080b0' },
+  teal:     { label: 'Teal',     swatch: '#20b8b0' },
+};
+
+let selectedTheme = 'rose';
+
+function applyTheme(profileId) {
+  // Get this profile's saved theme, fallback to rose
+  const profileData = state[profileId] || {};
+  const theme = profileData.theme || (profileId === 'dad' ? 'midnight' : 'rose');
+  document.body.className = `theme-${theme}`;
+}
+
+function renderThemePicker(currentTheme) {
+  selectedTheme = currentTheme || 'rose';
+  const picker = document.getElementById('themePicker');
+  picker.innerHTML = '';
+  Object.entries(THEMES).forEach(([id, t]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'theme-opt' + (id === selectedTheme ? ' selected' : '');
+    btn.title = t.label;
+    btn.style.background = t.swatch;
+    btn.onclick = () => {
+      selectedTheme = id;
+      document.querySelectorAll('.theme-opt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      // Live preview
+      document.body.className = `theme-${id}`;
+    };
+    picker.appendChild(btn);
+  });
+}
 
 // ── Icons ──────────────────────────────────────────────────────
 const ICONS = {
