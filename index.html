@@ -2263,26 +2263,27 @@ function addTask() {
   if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
   const requireProof = document.getElementById('requireProof').checked;
   const visibleToEl = document.getElementById('taskVisibleTo');
-  // When adding to partner's profile, always scope to creator (you) — partner can edit later
   const visibleTo = !isOwnProfile() ? currentUser.userId : (visibleToEl ? (visibleToEl.value || null) : null);
+  const createdBy = currentUser.userId;
   let toastMsg = '';
   if(addType==='monthly'){
-    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof,visibleTo});
+    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];
+    ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof,visibleTo,createdBy});
     toastMsg = '📅 Monthly task added';
   } else if(addType==='repeat'){
-    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof,visibleTo});
+    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof,visibleTo,createdBy});
     toastMsg = '↻ Repeating task added';
   } else if(addType==='assigned'){
     const expiry=document.getElementById('taskExpiry').value;
     if(!expiry){document.getElementById('taskExpiry').focus();return;}
-    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof,visibleTo};
+    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof,visibleTo,createdBy};
     ps(viewingProfile).assigned.push(task);
     document.getElementById('taskExpiry').value='';
     notifyAssigned(task,expiry);
     const targetName = isOwnProfile() ? 'yourself' : (currentUser.partnerNickname || 'partner');
     toastMsg = `⚑ Task assigned to ${targetName}`;
   } else {
-    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof,visibleTo});
+    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof,visibleTo,createdBy});
     toastMsg = '✓ Task added';
   }
   document.getElementById('taskName').value='';
