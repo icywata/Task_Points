@@ -8,7 +8,12 @@ const PORT       = process.env.PORT || 3000;
 const HTML_FILE  = path.join(__dirname, 'index.html');
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
-console.log('Server v12 starting — album fix, task edit proof, change password');
+console.log('Server v12 starting');
+
+// Clean up expired sessions periodically
+setInterval(async () => {
+  if (db) await db.query(`DELETE FROM sessions WHERE expires_at < NOW()`).catch(() => {});
+}, 6 * 60 * 60 * 1000); // every 6 hours
 
 // ── Password hashing ───────────────────────────────────────────
 function hashPassword(p) {
@@ -348,30 +353,6 @@ async function getPermissions(grantingUserId, granteeUserId) {
   return r.rows[0] || { allow_tasks: false, allow_shop: false };
 }
 
-// ── Points calculation ─────────────────────────────────────────
-async function getTotalEarned(userId) {
-  // Daily/assigned/repeat completions
-  const r1 = await db.query(`
-    SELECT COALESCE(SUM(t.points),0) as total
-    FROM task_completions tc
-    JOIN tasks t ON tc.task_id = t.id
-    WHERE tc.completed_by = $1
-    AND (tc.proof_status IS NULL OR tc.proof_status = 'approved')
-  `, [userId]);
-  // Monthly completions
-  const r2 = await db.query(`
-    SELECT COALESCE(SUM(t.points),0) as total
-    FROM monthly_completions mc
-    JOIN tasks t ON mc.task_id = t.id
-    WHERE mc.completed_by = $1 AND mc.completed_on IS NOT NULL
-  `, [userId]);
-  return parseInt(r1.rows[0].total) + parseInt(r2.rows[0].total);
-}
-async function getTotalSpent(userId) {
-  const r = await db.query(`SELECT COALESCE(SUM(cost),0) as total FROM inventory WHERE redeemed_by=$1`, [userId]);
-  return parseInt(r.rows[0].total);
-}
-
 // ── Daily reminders ────────────────────────────────────────────
 function scheduleDailyReminders() {
   function msUntil8am() {
@@ -633,7 +614,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Test endpoint ──────────────────────────────────────────
   if (req.method === 'GET' && url === '/api/test') {
-    json(res, { ok:true, version:'v10', time:new Date().toISOString() }); return;
+    json(res, { ok:true, version:'v12', time:new Date().toISOString() }); return;
   }
 
   // ── Serve HTML ─────────────────────────────────────────────
@@ -989,13 +970,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/login') {
     try {
       const { email, password } = await parseBody(req);
-      console.log(`Login attempt: ${email}`);
       const user = await getUserByEmail(email);
-      if (!user) { console.log('User not found'); json(res, { error: 'Invalid email or password' }, 401); return; }
-      if (user.password_hash !== hashPassword(password)) { console.log('Wrong password'); json(res, { error: 'Invalid email or password' }, 401); return; }
+      if (!user) { json(res, { error: 'Invalid email or password' }, 401); return; }
+      if (user.password_hash !== hashPassword(password)) { json(res, { error: 'Invalid email or password' }, 401); return; }
       if (!user.email_verified) { json(res, { error: 'Please verify your email before signing in', unverified: true }, 403); return; }
       const token = await createSession(user.id);
-      console.log(`Login success: ${user.id}`);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': setCookieHeader(token) });
       res.end(JSON.stringify({ ok: true, userId: user.id }));
     } catch(e) { console.error('Login error:', e.message); json(res, { error: e.message }, 500); }
@@ -1295,11 +1274,6 @@ const server = http.createServer(async (req, res) => {
         });
 
         result[uid] = p;
-      }
-
-      // Add partnership info
-      if (partnership) {
-        result.partnership = { userA:'dad', userB:'gg', status:'active' };
       }
 
       // Add partner's balance with current user (for displaying on partner's profile)
@@ -1635,20 +1609,17 @@ const server = http.createServer(async (req, res) => {
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       const { taskId, name, desc, pts, requireProof, visibleTo, updateVisibility } = await parseBody(req);
-      console.log(`Task update: ${taskId}, updateVisibility: ${updateVisibility}, userId: ${userId}, visibleTo: ${visibleTo}`);
       if (updateVisibility) {
         const r = await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
           [visibleTo||null, taskId, userId]);
-        console.log(`Visibility updated, rows: ${r.rowCount}`);
         if (r.rowCount === 0) {
           try { await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`); } catch(e2) {}
           await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
             [visibleTo||null, taskId, userId]);
         }
       } else {
-        const r = await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3, require_proof=$4 WHERE id=$5 AND created_by=$6`,
+        await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3, require_proof=$4 WHERE id=$5 AND created_by=$6`,
           [name, desc||null, pts, requireProof||false, taskId, userId]);
-        console.log(`Content updated, rows: ${r.rowCount}`);
       }
       json(res, { ok: true });
     } catch(e) {
@@ -1664,13 +1635,10 @@ const server = http.createServer(async (req, res) => {
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       const { taskId, ownerProfile } = await parseBody(req);
-      console.log(`Delete task ${taskId} by user ${userId}, ownerProfile: ${ownerProfile}`);
-      // Allow if: user owns task, user created task, or user is deleting from their partner's profile
       const r = await db.query(
         `UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2 OR owner_id=$3)`,
         [taskId, userId, ownerProfile || userId]
       );
-      console.log(`Rows updated: ${r.rowCount}`);
       json(res, { ok: true });
     } catch(e) { console.error('Delete error:', e); json(res, { error: e.message }, 500); }
     return;
@@ -1713,7 +1681,6 @@ const server = http.createServer(async (req, res) => {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     if (!s3Client) { json(res, { error: 'Photo storage not configured' }, 503); return; }
-    console.log('Upload request from:', userId);
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', async () => {

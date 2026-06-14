@@ -1138,7 +1138,7 @@ let currentUser = null; // { userId, firstName, lastName, nickname, role, email,
 async function doLogin() {
   const email    = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
-  console.log('doLogin called', email);
+
   if (!email || !password) { alert('Please enter email and password'); return; }
   const btn = document.querySelector('.login-btn');
   btn.textContent = 'Signing in…'; btn.disabled = true;
@@ -1422,7 +1422,7 @@ function renderProfileSwitcher() {
   }
   profiles.forEach(p => {
     const isActive = viewingProfile === p.id;
-    const themeClass = p.id === 'gg' ? 'active-gg' : 'active-dad';
+    const themeClass = p.isYou ? 'active-dad' : 'active-gg';
     const btn = document.createElement('button');
     btn.className = 'profile-btn' + (isActive ? ' '+themeClass : '');
     // Show balance: own tab = your balance with this partner, partner tab = their balance with you
@@ -2328,7 +2328,7 @@ async function deleteTask(taskId) {
     const res = await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body:JSON.stringify({ taskId, ownerProfile: viewingProfile }) });
     const data = await res.json();
-    console.log('Delete result:', data);
+
     await loadFromServer();
   } catch(e) { console.error('Delete failed:', e); toast('Delete failed', 'error'); }
 }
@@ -2429,7 +2429,7 @@ async function saveTaskEdit() {
 let editingRewardId = null;
 
 function openRewardEdit(item) {
-  console.log('openRewardEdit called', item);
+
   editingRewardId = item.id;
   document.getElementById('editRewardName').value = item.name || '';
   document.getElementById('editRewardDesc').value = item.desc || '';
@@ -2441,7 +2441,7 @@ function openRewardEdit(item) {
   }
   sel.value = item.visibleTo || '';
   const modal = document.getElementById('shopEditModal');
-  console.log('shopEditModal element:', modal);
+
   if (!modal) { console.error('shopEditModal not found!'); return; }
   modal.classList.remove('hidden');
   document.getElementById('editRewardName').focus();
@@ -2576,7 +2576,7 @@ function applyTheme(profileId) {
   } else {
     // Fallback during login before currentUser is set
     const profileData = state[profileId] || {};
-    theme = profileData.theme || (profileId === 'dad' ? 'midnight' : 'rose');
+    theme = profileData.theme || 'rose';
   }
   document.body.className = `theme-${theme}`;
 }
