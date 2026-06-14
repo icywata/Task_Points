@@ -1754,12 +1754,17 @@ function renderDaily() {
       requireProof:t.requireProof, taskRef:t, taskType:'daily',
       proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
       onCheck:async ()=>{
-        const task = getDayTasks(selectedDate)[i];
-        task.done = !task.done;
-        if (!task.done) task.proof = null;
+        const tasks = getDayTasks(selectedDate);
+        const task = tasks[i];
+        const newDone = !task.done;
+        task.done = newDone;
+        if (!newDone) task.proof = null;
         renderTracker();
-        await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-          body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: task.done, taskType: 'daily' }) });
+        // Write directly to DB — don't go through slow save queue
+        await fetch('/api/task/complete', {
+          method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+          body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: newDone, taskType: 'daily' })
+        });
         await loadBalances(); renderTotals();
       },
       onDelete:()=>{ deleteTask(t.id); }

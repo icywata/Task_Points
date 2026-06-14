@@ -1117,7 +1117,12 @@ const server = http.createServer(async (req, res) => {
           const mk = dateKey.slice(0,7);
           await db.query(`DELETE FROM monthly_completions WHERE task_id=$1 AND completed_by=$2 AND month_key=$3`, [taskId, userId, mk]);
         } else {
-          await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2`, [taskId, userId]);
+          // Delete only the completion for this specific date
+          await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND completed_on=$3`,
+            [taskId, userId, dateKey]);
+          // Also delete any completion without a date match (catches edge cases)
+          await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND (proof_status IS NULL OR proof_status != 'approved')`,
+            [taskId, userId]);
         }
       }
       json(res, { ok: true });
@@ -1184,9 +1189,12 @@ const server = http.createServer(async (req, res) => {
           ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}
         `, visParams);
         dailyTasks.rows.forEach(t => {
-          const dateKey = t.completed_on ? t.completed_on.toISOString().slice(0,10) : null;
-          const key = dateKey || t.created_at.toISOString().slice(0,10);
+          // Always use creation date as the bucket key — not completion date
+          // This ensures unchecked tasks still appear on the right day
+          const key = t.created_at.toISOString().slice(0,10);
           if (!p.days[key]) p.days[key] = { tasks:[] };
+          // Check if there's a completion for today's date specifically
+          const completedDate = t.completed_on ? t.completed_on.toISOString().slice(0,10) : null;
           p.days[key].tasks.push({
             id: t.id, name: t.name, desc: t.description, pts: t.points,
             createdBy: t.created_by, visibleTo: t.visible_to,
