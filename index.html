@@ -738,11 +738,7 @@
   <div class="screen visible" id="screen-tracker">
     <div class="alltime-banner">
       <div class="alltime-left">
-        <div class="alltime-icon" id="alltimeIcon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
-        </div>
+        <div class="alltime-icon" id="alltimeIcon"></div>
         <div>
           <div class="alltime-label" id="alltimeLabel">Points available</div>
           <div style="display:flex;align-items:baseline;gap:3px">
@@ -838,11 +834,7 @@
   <div class="screen" id="screen-shop">
     <div class="balance-card">
       <div class="balance-left">
-        <div class="balance-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
-        </div>
+        <div class="balance-icon" id="balanceIcon"></div>
         <div>
           <div class="balance-label" id="balanceLabel">Your balance</div>
           <div style="display:flex;align-items:baseline;gap:3px">
@@ -1822,6 +1814,11 @@ function renderTotals() {
     earned = 0; spent = 0; balance = 0;
   }
 
+  // Update icon to match viewing profile
+  const iconKey = isOwnProfile() ? (currentUser.icon || 'heart') : (currentUser.partnerIcon || 'star');
+  const alltimeIconEl = document.getElementById('alltimeIcon');
+  if (alltimeIconEl) alltimeIconEl.innerHTML = iconSVG(iconKey, 20);
+
   document.getElementById('alltimePts').textContent = balance;
   const earnedEl = document.getElementById('alltimeEarned');
   earnedEl.textContent = spent > 0 ? `${earned} earned · ${spent} spent` : `${earned} pts earned`;
@@ -1854,6 +1851,9 @@ function renderShop() {
   document.getElementById('balancePts').textContent = myBalance;
   document.getElementById('balanceLabel').textContent = 'Your balance';
   document.getElementById('balanceSpent').textContent = mySpent > 0 ? `${mySpent} pts spent on rewards` : '';
+  // Show the viewing user's icon
+  const iconKey = isOwnProfile() ? (currentUser.icon || 'heart') : (currentUser.partnerIcon || 'star');
+  document.getElementById('balanceIcon').innerHTML = iconSVG(iconKey, 20);
 
   const content = document.getElementById('shopContent');
   content.innerHTML = '';
