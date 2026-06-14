@@ -19,7 +19,7 @@ async function sendEmail(to, subject, html) {
   }
   return new Promise((resolve) => {
     const body = JSON.stringify({
-      from: 'Points Tracker <onboarding@resend.dev>',
+      from: 'KinkPoints <contact@kinkpoints.app>',
       to,
       subject,
       html
