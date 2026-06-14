@@ -110,6 +110,7 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS connect_code TEXT`,
     `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS visible_to TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`,
   ];
   for (const sql of alterCols) {
     try { await db.query(sql); } catch(e) {}
@@ -179,6 +180,7 @@ async function createSchema() {
       points INTEGER NOT NULL,
       require_proof BOOLEAN DEFAULT FALSE,
       proof_reviewer_id TEXT REFERENCES users(id),
+      visible_to TEXT REFERENCES users(id),
       assigned_on DATE,
       expires_on DATE,
       start_date DATE,
@@ -919,6 +921,10 @@ const server = http.createServer(async (req, res) => {
 
       for (const uid of partnerIds) {
         const p = {};
+        // When viewing someone else's tasks, only show tasks visible to us
+        const visibilityClause = uid === userId
+          ? `` // owner sees all their own tasks
+          : `AND (t.visible_to IS NULL OR t.visible_to='${userId}')`; // partner sees only tasks scoped to them or everyone
 
         // Build days structure from task_completions
         p.days = {};
@@ -926,7 +932,7 @@ const server = http.createServer(async (req, res) => {
           SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status, tc.proof_saved
           FROM tasks t
           LEFT JOIN task_completions tc ON tc.task_id = t.id AND tc.completed_by = t.owner_id
-          WHERE t.owner_id=$1 AND t.type='daily' AND t.active=TRUE
+          WHERE t.owner_id=$1 AND t.type='daily' AND t.active=TRUE ${visibilityClause}
         `, [uid]);
         dailyTasks.rows.forEach(t => {
           const dateKey = t.completed_on ? t.completed_on.toISOString().slice(0,10) : null;
@@ -934,19 +940,19 @@ const server = http.createServer(async (req, res) => {
           if (!p.days[key]) p.days[key] = { tasks:[] };
           p.days[key].tasks.push({
             id: t.id, name: t.name, desc: t.description, pts: t.points,
-            done: !!t.completed_on, requireProof: t.require_proof,
+            done: !!t.completed_on, requireProof: t.require_proof, visibleTo: t.visible_to,
             proof: t.proof_key ? { key: t.proof_key, state: t.proof_status||'pending', savedBy: t.proof_saved ? {[uid]:true} : {} } : null
           });
         });
 
         // Monthly tasks
         p.monthly = {}; p.monthlyDone = {};
-        const monthlyTasks = await db.query(`SELECT t.*, mc.completed_on, mc.month_key as done_month FROM tasks t LEFT JOIN monthly_completions mc ON mc.task_id=t.id AND mc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='monthly' AND t.active=TRUE`, [uid]);
+        const monthlyTasks = await db.query(`SELECT t.*, mc.completed_on, mc.month_key as done_month FROM tasks t LEFT JOIN monthly_completions mc ON mc.task_id=t.id AND mc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='monthly' AND t.active=TRUE ${visibilityClause}`, [uid]);
         monthlyTasks.rows.forEach(t => {
           const mk = t.month_key;
           if (!p.monthly[mk]) p.monthly[mk] = [];
           if (!p.monthly[mk].find(x => x.id === t.id)) {
-            p.monthly[mk].push({ id:t.id, name:t.name, desc:t.description, pts:t.points });
+            p.monthly[mk].push({ id:t.id, name:t.name, desc:t.description, pts:t.points, visibleTo:t.visible_to });
           }
           if (t.completed_on) {
             if (!p.monthlyDone[mk]) p.monthlyDone[mk] = {};
@@ -956,12 +962,12 @@ const server = http.createServer(async (req, res) => {
 
         // Repeating tasks
         p.repeating = []; p.repeatingDone = {}; p.repeatingDeleted = {};
-        const repeatingTasks = await db.query(`SELECT t.*, tc.completed_on FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='repeat' AND t.active=TRUE`, [uid]);
+        const repeatingTasks = await db.query(`SELECT t.*, tc.completed_on FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='repeat' AND t.active=TRUE ${visibilityClause}`, [uid]);
         const seen = new Set();
         repeatingTasks.rows.forEach(t => {
           if (!seen.has(t.id)) {
             seen.add(t.id);
-            p.repeating.push({ id:t.id, name:t.name, desc:t.description, pts:t.points, startDate:t.start_date?.toISOString().slice(0,10), requireProof:t.require_proof });
+            p.repeating.push({ id:t.id, name:t.name, desc:t.description, pts:t.points, startDate:t.start_date?.toISOString().slice(0,10), requireProof:t.require_proof, visibleTo:t.visible_to });
             if (t.deleted_from) p.repeatingDeleted[t.id] = t.deleted_from.toISOString().slice(0,10);
           }
           if (t.completed_on) {
@@ -973,14 +979,14 @@ const server = http.createServer(async (req, res) => {
 
         // Assigned tasks
         p.assigned = [];
-        const assignedTasks = await db.query(`SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='assigned' AND t.active=TRUE`, [uid]);
+        const assignedTasks = await db.query(`SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='assigned' AND t.active=TRUE ${visibilityClause}`, [uid]);
         const seenA = new Set();
         assignedTasks.rows.forEach(t => {
           if (!seenA.has(t.id)) {
             seenA.add(t.id);
             p.assigned.push({
               id:t.id, name:t.name, desc:t.description, pts:t.points,
-              createdBy:t.created_by,
+              createdBy:t.created_by, visibleTo:t.visible_to,
               assignedOn:t.assigned_on?.toISOString().slice(0,10),
               expiresOn:t.expires_on?.toISOString().slice(0,10),
               completedOn:t.completed_on?.toISOString().slice(0,10)||null,
@@ -1100,15 +1106,14 @@ const server = http.createServer(async (req, res) => {
       // Process tasks - upsert daily tasks for today
       for (const [dateKey, day] of Object.entries(myData.days || {})) {
         for (const t of (day.tasks || [])) {
-          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,active) VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,TRUE) ON CONFLICT (id) DO NOTHING`,
-            [t.id, userId, userId, t.name, t.desc||null, t.pts, t.requireProof||false]);
+          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,require_proof,visible_to,active) VALUES ($1,$2,$3,'daily',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8`,
+            [t.id, userId, userId, t.name, t.desc||null, t.pts, t.requireProof||false, t.visibleTo||null]);
           if (t.done) {
             await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
               [uid(), t.id, userId, dateKey]);
           } else {
             await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND completed_on=$3`, [t.id, userId, dateKey]);
           }
-          // Update proof if exists
           if (t.proof?.key) {
             await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)
               VALUES ($1,$2,$3,$4,$5,$6)
@@ -1121,8 +1126,8 @@ const server = http.createServer(async (req, res) => {
       // Monthly completions
       for (const [mk, tasks] of Object.entries(myData.monthly || {})) {
         for (const t of tasks) {
-          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,month_key,active) VALUES ($1,$2,$3,'monthly',$4,$5,$6,$7,TRUE) ON CONFLICT (id) DO NOTHING`,
-            [t.id, userId, userId, t.name, t.desc||null, t.pts, mk]);
+          await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,month_key,visible_to,active) VALUES ($1,$2,$3,'monthly',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$8`,
+            [t.id, userId, userId, t.name, t.desc||null, t.pts, mk, t.visibleTo||null]);
         }
       }
       for (const [mk, done] of Object.entries(myData.monthlyDone || {})) {
@@ -1139,8 +1144,8 @@ const server = http.createServer(async (req, res) => {
       // Repeating tasks
       for (const t of (myData.repeating || [])) {
         const deletedFrom = (myData.repeatingDeleted || {})[t.id] || null;
-        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,active) VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET deleted_from=$8`,
-          [t.id, userId, userId, t.name, t.desc||null, t.pts, t.startDate, deletedFrom]);
+        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,visible_to,active) VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,$9,TRUE) ON CONFLICT (id) DO UPDATE SET deleted_from=$8,visible_to=$9`,
+          [t.id, userId, userId, t.name, t.desc||null, t.pts, t.startDate, deletedFrom, t.visibleTo||null]);
       }
       for (const [dateKey, done] of Object.entries(myData.repeatingDone || {})) {
         for (const [taskId, isDone] of Object.entries(done)) {
@@ -1153,8 +1158,8 @@ const server = http.createServer(async (req, res) => {
 
       // Assigned tasks
       for (const t of (myData.assigned || [])) {
-        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,assigned_on,expires_on,require_proof,active) VALUES ($1,$2,$3,'assigned',$4,$5,$6,$7,$8,$9,TRUE) ON CONFLICT (id) DO NOTHING`,
-          [t.id, userId, userId, t.name, t.desc||null, t.pts, t.assignedOn, t.expiresOn, t.requireProof||false]);
+        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,assigned_on,expires_on,require_proof,visible_to,active) VALUES ($1,$2,$3,'assigned',$4,$5,$6,$7,$8,$9,$10,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$10`,
+          [t.id, userId, userId, t.name, t.desc||null, t.pts, t.assignedOn, t.expiresOn, t.requireProof||false, t.visibleTo||null]);
         if (t.completedOn) {
           await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
             [uid(), t.id, userId, t.completedOn]);

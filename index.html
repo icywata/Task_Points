@@ -774,6 +774,10 @@
           <label for="proofReviewer">Who reviews the proof?</label>
           <select id="proofReviewer"></select>
         </div>
+        <div id="taskVisibilityRow">
+          <label for="taskVisibleTo">Visible to</label>
+          <select id="taskVisibleTo"></select>
+        </div>
         <div class="form-row">
           <div><label for="taskPts">Point value</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
           <div style="display:flex;flex-direction:column;justify-content:flex-end">
@@ -1353,11 +1357,25 @@ function makeTaskRow(opts) {
   // Can complete task?
   const canComplete = !opts.checkDisabled && (!opts.requireProof || opts.done || proofState === 'approved');
 
+  // Visibility label — only show on own profile so you know who sees each task
+  let visibilityLabel = '';
+  if (isOwnProfile() && opts.visibleTo !== undefined) {
+    if (opts.visibleTo) {
+      const name = opts.visibleTo === currentUser.partnerId
+        ? (currentUser.partnerNickname || 'Partner')
+        : 'Specific partner';
+      visibilityLabel = `<span style="font-size:10px;color:var(--text-muted);margin-top:2px;display:block">🔒 Only ${esc(name)} can see this</span>`;
+    } else {
+      visibilityLabel = `<span style="font-size:10px;color:var(--text-muted);margin-top:2px;display:block">👁 Visible to all partners</span>`;
+    }
+  }
+
   row.innerHTML = `
     <div class="task-check${!canComplete?' disabled':''}">${checkSVG()}</div>
     <div class="task-body">
       <div class="task-name">${esc(opts.name)}</div>
       ${opts.desc?`<div class="task-desc">${esc(opts.desc)}</div>`:''}
+      ${visibilityLabel}
     </div>
     <div class="task-right">
       ${thumbnailHtml}
@@ -1423,8 +1441,18 @@ function renderTracker() {
   renderMonthly();
   renderDaily();
   renderTotals();
-  const isOwn = isOwnProfile();
-  const canAddTasks = isOwn || viewedProfileGrantsTaskPerms();
+  // Populate task visibility dropdown — defaults to partner (privacy first)
+  const taskVisibleSel = document.getElementById('taskVisibleTo');
+  if (taskVisibleSel) {
+    taskVisibleSel.innerHTML = '';
+    if (currentUser.partnerId && isOwnProfile()) {
+      const partnerName = currentUser.partnerNickname || 'Partner';
+      taskVisibleSel.innerHTML = `<option value="${currentUser.partnerId}">${esc(partnerName)} only (default)</option><option value="">Everyone</option>`;
+    } else {
+      taskVisibleSel.innerHTML = `<option value="">Everyone</option>`;
+      if (currentUser.partnerId) taskVisibleSel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+    }
+  }
   // Show/hide task type buttons based on permissions
   document.getElementById('addTaskSection').style.display = 'block';
   document.getElementById('btn-daily').style.display   = canAddTasks ? '' : 'none';
@@ -1488,7 +1516,7 @@ function renderAssigned() {
       done:isDone, name:t.name, desc:t.desc, pts:t.pts, extraClass:rowExtra,
       extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'assigned',
-      proof:t.proof, canUpload, isReviewer,
+      proof:t.proof, canUpload, isReviewer, visibleTo:t.visibleTo,
       onCheck:()=>{
         if (isDone){const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=null;}
         else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=selectedDate;}
@@ -1509,7 +1537,7 @@ function renderMonthly() {
   tasks.forEach(t=>{
     const isDone=!!done[t.id];
     const canCheck=isOwnProfile();
-    const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:isOwnProfile(),
+    const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:isOwnProfile(), visibleTo:t.visibleTo,
       onCheck:()=>{if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};ps().monthlyDone[mk][t.id]=isDone?null:selectedDate;scheduleSave();renderTracker();},
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1525,7 +1553,7 @@ function renderDaily() {
     const isDone=!!rdone[t.id];
     const canCheck=isOwnProfile();
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'repeat-row',
-      checkDisabled:!canCheck,showDelete:isOwnProfile(),
+      checkDisabled:!canCheck,showDelete:isOwnProfile(), visibleTo:t.visibleTo,
       extraButtons:isOwnProfile()?`<button class="task-delete-future">Del future</button>`:'',
       onCheck:()=>{if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};ps().repeatingDone[selectedDate][t.id]=!isDone;scheduleSave();renderTracker();},
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
@@ -1544,7 +1572,7 @@ function renderDaily() {
       done:t.done, name:t.name, desc:t.desc, pts:t.pts,
       checkDisabled:!canCheck, showDelete:isOwnProfile(),
       requireProof:t.requireProof, taskRef:t, taskType:'daily',
-      proof:t.proof, canUpload:isOwnProfile(), isReviewer,
+      proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo,
       onCheck:()=>{ getDayTasks(selectedDate)[i].done^=true; scheduleSave();renderTracker(); },
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1962,24 +1990,26 @@ function addTask() {
   if(!name){document.getElementById('taskName').focus();return;}
   if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
   const requireProof = document.getElementById('requireProof').checked;
+  const visibleToEl = document.getElementById('taskVisibleTo');
+  const visibleTo = visibleToEl ? (visibleToEl.value || null) : null;
   let toastMsg = '';
   if(addType==='monthly'){
-    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof});
+    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof,visibleTo});
     toastMsg = '📅 Monthly task added';
   } else if(addType==='repeat'){
-    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof});
+    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof,visibleTo});
     toastMsg = '↻ Repeating task added';
   } else if(addType==='assigned'){
     const expiry=document.getElementById('taskExpiry').value;
     if(!expiry){document.getElementById('taskExpiry').focus();return;}
-    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof};
+    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof,visibleTo};
     ps(viewingProfile).assigned.push(task);
     document.getElementById('taskExpiry').value='';
     notifyAssigned(task,expiry);
     const targetName = isOwnProfile() ? 'yourself' : (currentUser.partnerNickname || 'partner');
     toastMsg = `⚑ Task assigned to ${targetName}`;
   } else {
-    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof});
+    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof,visibleTo});
     toastMsg = '✓ Task added';
   }
   document.getElementById('taskName').value='';
