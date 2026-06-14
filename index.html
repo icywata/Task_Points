@@ -2186,6 +2186,8 @@ async function changePassword() {
     }
   } catch(e) { msg.textContent = 'Connection error'; }
 }
+
+async function saveProfile() {
   const username = document.getElementById('profileUsername').value.trim().toLowerCase();
   const nickname = document.getElementById('profileNickname').value.trim();
   const role     = document.getElementById('profileRole').value;
