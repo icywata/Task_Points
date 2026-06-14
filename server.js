@@ -841,6 +841,52 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Get current user ───────────────────────────────────────
+  // ── Per-partnership balances ───────────────────────────────
+  if (req.method === 'GET' && url === '/api/balances') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const partnerships = await db.query(`
+        SELECT p.id, p.created_at,
+          CASE WHEN p.user_a_id=$1 THEN p.user_b_id ELSE p.user_a_id END as partner_id
+        FROM partnerships p
+        WHERE (p.user_a_id=$1 OR p.user_b_id=$1) AND p.status='active'
+      `, [userId]);
+
+      const balances = {};
+      for (const pship of partnerships.rows) {
+        const partnerId = pship.partner_id;
+        const partnershipStart = pship.created_at.toISOString().slice(0,10);
+
+        // Points earned on tasks visible to this partner or everyone, after partnership start
+        const earned = await db.query(`
+          SELECT COALESCE(SUM(t.points), 0) as total
+          FROM task_completions tc
+          JOIN tasks t ON t.id = tc.task_id
+          WHERE tc.completed_by = $1
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+            AND tc.completed_on >= $3
+        `, [userId, partnerId, partnershipStart]);
+
+        // Points spent on items from this partner's shop
+        const spent = await db.query(`
+          SELECT COALESCE(SUM(i.cost), 0) as total
+          FROM inventory i
+          WHERE i.redeemed_by = $1 AND i.owner_id = $2
+        `, [userId, partnerId]);
+
+        balances[partnerId] = {
+          earned: parseInt(earned.rows[0].total),
+          spent: parseInt(spent.rows[0].total),
+          balance: parseInt(earned.rows[0].total) - parseInt(spent.rows[0].total),
+          partnershipStart
+        };
+      }
+      json(res, balances);
+    } catch(e) { console.error('Balances error:', e); json(res, { error: e.message }, 500); }
+    return;
+  }
+
   if (req.method === 'GET' && url === '/api/me') {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Not authenticated' }, 401); return; }
@@ -1030,6 +1076,31 @@ const server = http.createServer(async (req, res) => {
       // Add partnership info
       if (partnership) {
         result.partnership = { userA:'dad', userB:'gg', status:'active' };
+      }
+
+      // Add partner's balance with current user (for displaying on partner's profile)
+      if (partnership) {
+        const partnerId = partnership.partnerId;
+        const pshipRow = await db.query(`SELECT created_at FROM partnerships WHERE id=$1`, [partnership.partnershipId]);
+        const pStart = pshipRow.rows[0]?.created_at?.toISOString().slice(0,10) || '2000-01-01';
+
+        const theirEarned = await db.query(`
+          SELECT COALESCE(SUM(t.points), 0) as total
+          FROM task_completions tc
+          JOIN tasks t ON t.id = tc.task_id
+          WHERE tc.completed_by = $1
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+            AND tc.completed_on >= $3
+        `, [partnerId, userId, pStart]);
+
+        const theirSpent = await db.query(`
+          SELECT COALESCE(SUM(i.cost), 0) as total
+          FROM inventory i WHERE i.redeemed_by=$1 AND i.owner_id=$2
+        `, [partnerId, userId]);
+
+        const te = parseInt(theirEarned.rows[0].total);
+        const ts = parseInt(theirSpent.rows[0].total);
+        result._partnerBalances = { earned: te, spent: ts, balance: te - ts };
       }
 
       json(res, result);

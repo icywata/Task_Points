@@ -1123,6 +1123,7 @@ async function bootApp() {
   // Set viewing profile to own profile by default
   viewingProfile = currentUser.userId;
   await loadFromServer();
+  await loadBalances();
   updateProfileTabLabel();
   renderPendingRequests();
 }
@@ -1186,20 +1187,43 @@ function getDayPoints(key, profileId) {
   return pts;
 }
 
+// ── Partnership balances ───────────────────────────────────────
+// Loaded from server — keyed by partnerId
+let partnershipBalances = {};
+
+async function loadBalances() {
+  try {
+    const res = await fetch('/api/balances', { credentials:'include' });
+    if (res.ok) partnershipBalances = await res.json();
+  } catch(e) { console.error('Failed to load balances:', e); }
+}
+
+// Points earned/spent/available with a specific partner
+function getEarnedWith(partnerId) {
+  return partnershipBalances[partnerId]?.earned || 0;
+}
+function getSpentWith(partnerId) {
+  return partnershipBalances[partnerId]?.spent || 0;
+}
+function getBalanceWith(partnerId) {
+  return partnershipBalances[partnerId]?.balance || 0;
+}
+
+// Legacy wrappers — kept for any remaining calls, scoped to current viewing context
 function getTotalEarned(profileId) {
-  const p = ps(profileId);
-  let total = 0;
-  Object.values(p.days).forEach(day=>{ total+=(day.tasks||[]).reduce((s,t)=>s+(t.done?t.pts:0),0); });
-  Object.entries(p.monthlyDone).forEach(([mk,done])=>{ (p.monthly[mk]||[]).forEach(t=>{ if(done[t.id]) total+=t.pts; }); });
-  Object.entries(p.repeatingDone).forEach(([dk,done])=>{ getRepeatingForDay(dk,profileId).forEach(t=>{ if(done[t.id]) total+=t.pts; }); });
-  (p.assigned||[]).forEach(t=>{ if(t.completedOn) total+=t.pts; });
-  return total;
+  if (profileId === currentUser?.userId) {
+    // Own profile — show balance with currently viewed partner
+    return currentUser?.partnerId ? getEarnedWith(currentUser.partnerId) : 0;
+  }
+  // Partner's profile — show their balance with us
+  return partnershipBalances[profileId] ? 0 : 0; // partner's balance loaded separately
 }
-
 function getTotalSpent(profileId) {
-  return ps(profileId).inventory.reduce((s,i)=>s+i.cost,0);
+  if (profileId === currentUser?.userId) {
+    return currentUser?.partnerId ? getSpentWith(currentUser.partnerId) : 0;
+  }
+  return 0;
 }
-
 function getBalance(profileId) { return getTotalEarned(profileId) - getTotalSpent(profileId); }
 
 function getDayTasks(key, profileId) {
@@ -1231,6 +1255,7 @@ async function loadFromServer() {
     state = await res.json();
     ps(currentUser.userId);
     if (currentUser.partnerId) ps(currentUser.partnerId);
+    await loadBalances(); // refresh per-partnership balances
     setSync('saved','Up to date');
     try { renderAll(); } catch(e) { console.error('renderAll error:', e); }
   } catch(e) {
@@ -1322,6 +1347,15 @@ function renderProfileSwitcher() {
     const themeClass = p.id === 'gg' ? 'active-gg' : 'active-dad';
     const btn = document.createElement('button');
     btn.className = 'profile-btn' + (isActive ? ' '+themeClass : '');
+    // Show balance: own tab = your balance with this partner, partner tab = their balance with you
+    let balanceLine = '';
+    if (p.isYou && currentUser.partnerId) {
+      const bal = getBalanceWith(currentUser.partnerId);
+      balanceLine = `<span class="p-role" style="opacity:.6">${bal} pts</span>`;
+    } else if (!p.isYou) {
+      const theirBal = state._partnerBalances?.balance ?? '—';
+      balanceLine = `<span class="p-role" style="opacity:.6">${theirBal} pts with you</span>`;
+    }
     btn.innerHTML = `
       <div class="p-icon">${iconSVG(p.icon, 18)}</div>
       <div class="p-name-row">
@@ -1329,6 +1363,7 @@ function renderProfileSwitcher() {
         ${p.isYou ? '<span class="you-badge">You</span>' : ''}
       </div>
       <span class="p-role">@${esc(p.username||'')} · ${esc(p.role||'')}</span>
+      ${balanceLine}
     `;
     btn.onclick = () => switchProfile(p.id);
     sw.appendChild(btn);
@@ -1653,14 +1688,34 @@ function renderWeek() {
 }
 
 function renderTotals() {
-  const earned=getTotalEarned(),spent=getTotalSpent(),balance=earned-spent;
-  document.getElementById('totalPts').textContent=getDayPoints(selectedDate);
-  document.getElementById('alltimePts').textContent=balance;
-  const earnedEl=document.getElementById('alltimeEarned');
-  earnedEl.textContent=spent>0?`${earned} earned · ${spent} spent`:(`${earned} pts earned total`);
-  document.getElementById('totalLabel').textContent=selectedDate===getTodayKey()?'Points earned today':'Points earned';
+  const partnerId = isOwnProfile() ? currentUser.partnerId : currentUser.userId;
+  const viewPartnerId = isOwnProfile() ? currentUser.partnerId : viewingProfile;
+
+  let earned, spent, balance;
+  if (isOwnProfile() && currentUser.partnerId) {
+    earned  = getEarnedWith(currentUser.partnerId);
+    spent   = getSpentWith(currentUser.partnerId);
+    balance = getBalanceWith(currentUser.partnerId);
+  } else if (!isOwnProfile()) {
+    // Viewing partner's profile — show their balance with us
+    const theirBalances = state._partnerBalances || {};
+    earned  = theirBalances.earned  || 0;
+    spent   = theirBalances.spent   || 0;
+    balance = theirBalances.balance || 0;
+  } else {
+    earned = 0; spent = 0; balance = 0;
+  }
+
+  document.getElementById('totalPts').textContent = getDayPoints(selectedDate);
+  document.getElementById('alltimePts').textContent = balance;
+  const earnedEl = document.getElementById('alltimeEarned');
+  earnedEl.textContent = spent > 0 ? `${earned} earned · ${spent} spent` : `${earned} pts earned`;
+  document.getElementById('totalLabel').textContent = selectedDate===getTodayKey() ? 'Points earned today' : 'Points earned';
   const viewingName = isOwnProfile() ? 'Your' : (currentUser.partnerNickname||'Partner')+"'s";
-  document.getElementById('alltimeLabel').textContent=`${viewingName} points available`;
+  const withName = isOwnProfile()
+    ? (currentUser.partnerNickname ? ` with ${currentUser.partnerNickname}` : '')
+    : ` with you`;
+  document.getElementById('alltimeLabel').textContent = `${viewingName} points${withName}`;
 }
 
 function renderAll() {
@@ -1670,10 +1725,17 @@ function renderAll() {
 
 // ── Shop render ────────────────────────────────────────────────
 function renderShop() {
-  // MY balance = my earned - my spent (I spend points in my PARTNER's shop)
-  const myEarned  = getTotalEarned(currentUser.userId);
-  const mySpent   = getTotalSpent(currentUser.userId);
-  const myBalance = myEarned - mySpent;
+  // MY balance with the shop owner = what I can spend here
+  const shopOwnerId = isOwnProfile() ? currentUser.userId : viewingProfile;
+  const myBalance = isOwnProfile()
+    ? (currentUser.partnerId ? getBalanceWith(currentUser.partnerId) : 0)
+    : getBalanceWith(viewingProfile);
+  const myEarned = isOwnProfile()
+    ? (currentUser.partnerId ? getEarnedWith(currentUser.partnerId) : 0)
+    : getEarnedWith(viewingProfile);
+  const mySpent = isOwnProfile()
+    ? (currentUser.partnerId ? getSpentWith(currentUser.partnerId) : 0)
+    : getSpentWith(viewingProfile);
 
   document.getElementById('balancePts').textContent = myBalance;
   document.getElementById('balanceLabel').textContent = 'Your balance';
@@ -1883,8 +1945,8 @@ function renderShop() {
 }
 
 function redeemReward(item) {
-  const myBalance = getBalance(currentUser.userId);
-  if (myBalance < item.cost) { toast('Not enough points', 'error'); return; }
+  const myBalance = currentUser.partnerId ? getBalanceWith(currentUser.partnerId) : 0;
+  if (myBalance < item.cost) { toast('Not enough points with this partner', 'error'); return; }
   ps(currentUser.userId).inventory.push({
     id: uid(), rewardId: item.id, name: item.name, desc: item.desc,
     cost: item.cost, fromUserId: currentUser.partnerId,
@@ -1933,13 +1995,23 @@ function renderProfile() {
   const balance = getBalance(currentUser.userId);
   const icon = currentUser.icon || 'heart';
   const theme = currentUser.theme || 'rose';
+  // Build per-partnership balance breakdown
+  let balanceHtml = '';
+  if (currentUser.partnerId) {
+    const b = getBalanceWith(currentUser.partnerId);
+    const e = getEarnedWith(currentUser.partnerId);
+    const partnerName = currentUser.partnerNickname || 'Partner';
+    balanceHtml = `<div class="profile-display-pts">${b} pts with ${esc(partnerName)} · ${e} earned</div>`;
+  } else {
+    balanceHtml = `<div class="profile-display-pts">No partner yet</div>`;
+  }
   document.getElementById('profileInfoCard').innerHTML = `
     <div class="profile-avatar">${iconSVG(icon, 30)}</div>
     <div>
       <div class="profile-display-name">${esc(name)}</div>
       <div class="profile-display-role">@${esc(currentUser.username||'')} · ${esc(currentUser.role||'')}</div>
       <div class="profile-display-email">${esc(currentUser.email||'No email set')}</div>
-      <div class="profile-display-pts">${balance} pts available · ${earned} earned</div>
+      ${balanceHtml}
     </div>`;
   document.getElementById('profileUsername').value = currentUser.username||'';
   document.getElementById('profileNickname').value = currentUser.nickname||'';
@@ -1966,12 +2038,16 @@ function renderPartnerProfileView() {
   const icon = currentUser.partnerIcon || 'star';
   const perms = getMyPermissionsFor(viewingProfile);
   const partnerName = currentUser.partnerNickname || currentUser.partnerUsername || 'Partner';
+  // Partner's balance with us — loaded from their perspective via state._partnerBalances
+  const theirBalances = state._partnerBalances || {};
+  const theirBalance = theirBalances.balance || 0;
+  const theirEarned  = theirBalances.earned  || 0;
   document.getElementById('profileInfoCard').innerHTML = `
     <div class="profile-avatar">${iconSVG(icon, 30)}</div>
     <div>
       <div class="profile-display-name">${esc(name)}</div>
       <div class="profile-display-role">@${esc(currentUser.partnerUsername||'')} · ${esc(currentUser.partnerRole||'')}</div>
-      <div class="profile-display-pts">${balance} pts available · ${earned} earned</div>
+      <div class="profile-display-pts">${theirBalance} pts with you · ${theirEarned} earned</div>
     </div>`;
   document.querySelector('#screen-profile .divider').style.display='none';
   document.querySelectorAll('#screen-profile .section-head').forEach(el=>el.style.display='none');
