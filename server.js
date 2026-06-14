@@ -868,6 +868,17 @@ const server = http.createServer(async (req, res) => {
             AND tc.completed_on >= $3
         `, [userId, partnerId, partnershipStart]);
 
+        // Debug — also count without date filter
+        const earnedAll = await db.query(`
+          SELECT COALESCE(SUM(t.points), 0) as total, COUNT(*) as cnt
+          FROM task_completions tc
+          JOIN tasks t ON t.id = tc.task_id
+          WHERE tc.completed_by = $1
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+        `, [userId, partnerId]);
+
+        console.log(`Balances for ${userId} with ${partnerId}: start=${partnershipStart}, earned_filtered=${earned.rows[0].total}, earned_all=${earnedAll.rows[0].total}, count_all=${earnedAll.rows[0].cnt}`);
+
         // Points spent on items from this partner's shop
         const spent = await db.query(`
           SELECT COALESCE(SUM(i.cost), 0) as total
