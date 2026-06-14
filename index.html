@@ -1651,8 +1651,9 @@ function renderShop() {
     }
     content.appendChild(grid);
 
-    // Add reward form
-    content.innerHTML += `<hr class="divider"/>`;
+    // Add reward form — use appendChild not innerHTML+= to preserve grid listeners
+    const hr1 = document.createElement('hr'); hr1.className = 'divider';
+    content.appendChild(hr1);
     const formDiv = document.createElement('div');
     // Build partner options for visibility selector
     const partnerOptions = currentUser.partnerId
@@ -1677,7 +1678,8 @@ function renderShop() {
     content.appendChild(formDiv);
 
     // Partner's purchases from my shop (inventory I need to fulfil)
-    content.innerHTML += `<hr class="divider"/>`;
+    const hr2 = document.createElement('hr'); hr2.className = 'divider';
+    content.appendChild(hr2);
     const invSection = document.createElement('div');
     invSection.innerHTML = `<div class="section-head">Purchases to fulfil <span class="section-badge repeat" style="font-size:9px">Your partner bought these</span></div>`;
     const invList = document.createElement('div');
@@ -1771,7 +1773,8 @@ function renderShop() {
         </div>`;
       content.appendChild(formDiv);
     }
-    content.innerHTML += `<hr class="divider"/>`;
+    const hr3 = document.createElement('hr'); hr3.className = 'divider';
+    content.appendChild(hr3);
     const invSection = document.createElement('div');
     invSection.innerHTML = `<div class="section-head">Your purchases <span class="section-badge repeat" style="font-size:9px">Items you've bought</span></div>`;
     const invList = document.createElement('div');
