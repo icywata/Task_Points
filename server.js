@@ -1109,6 +1109,22 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Save profile ───────────────────────────────────────────
+  // ── Change password ────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/change-password') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { currentPassword, newPassword } = await parseBody(req);
+      if (!currentPassword || !newPassword) { json(res, { error: 'All fields required' }, 400); return; }
+      if (newPassword.length < 8) { json(res, { error: 'Password must be at least 8 characters' }, 400); return; }
+      const user = await getUserById(userId);
+      if (user.password_hash !== hashPassword(currentPassword)) { json(res, { error: 'Current password is incorrect' }, 401); return; }
+      await db.query(`UPDATE users SET password_hash=$1 WHERE id=$2`, [hashPassword(newPassword), userId]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   if (req.method === 'POST' && url === '/api/profile') {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
@@ -1566,21 +1582,20 @@ const server = http.createServer(async (req, res) => {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
-      const { taskId, name, desc, pts, visibleTo, updateVisibility } = await parseBody(req);
+      const { taskId, name, desc, pts, requireProof, visibleTo, updateVisibility } = await parseBody(req);
       console.log(`Task update: ${taskId}, updateVisibility: ${updateVisibility}, userId: ${userId}, visibleTo: ${visibleTo}`);
       if (updateVisibility) {
         const r = await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
           [visibleTo||null, taskId, userId]);
         console.log(`Visibility updated, rows: ${r.rowCount}`);
         if (r.rowCount === 0) {
-          // Maybe column doesn't exist yet — try adding it
           try { await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`); } catch(e2) {}
           await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
             [visibleTo||null, taskId, userId]);
         }
       } else {
-        const r = await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3 WHERE id=$4 AND created_by=$5`,
-          [name, desc||null, pts, taskId, userId]);
+        const r = await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3, require_proof=$4 WHERE id=$5 AND created_by=$6`,
+          [name, desc||null, pts, requireProof||false, taskId, userId]);
         console.log(`Content updated, rows: ${r.rowCount}`);
       }
       json(res, { ok: true });
@@ -1617,6 +1632,26 @@ const server = http.createServer(async (req, res) => {
       const { taskId, fromDate } = await parseBody(req);
       await db.query(`UPDATE tasks SET deleted_from=$1 WHERE id=$2 AND owner_id=$3`, [fromDate, taskId, userId]);
       json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Proof album ────────────────────────────────────────────
+  if (req.method === 'GET' && url === '/api/proof/album') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const r = await db.query(`
+        SELECT pp.r2_key, pp.task_id, pp.uploaded_by, pp.uploaded_at, t.name as task_name
+        FROM proof_photos pp
+        LEFT JOIN tasks t ON t.id = pp.task_id
+        WHERE $1 = ANY(pp.saved_by)
+        ORDER BY pp.uploaded_at DESC
+      `, [userId]);
+      json(res, r.rows.map(p => ({
+        key: p.r2_key, taskName: p.task_name || 'Saved photo',
+        uploadedBy: p.uploaded_by, uploadedAt: p.uploaded_at
+      })));
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
   }

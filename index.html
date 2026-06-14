@@ -447,6 +447,10 @@
         <div><label for="editTaskName">Task name</label><input type="text" id="editTaskName" maxlength="80"/></div>
         <div><label for="editTaskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="editTaskDesc" rows="2" maxlength="200"></textarea></div>
         <div><label for="editTaskPts">Point value</label><input type="number" id="editTaskPts" min="1" max="9999"/></div>
+        <div class="proof-toggle-row">
+          <span class="proof-toggle-label">Require photo proof</span>
+          <label class="toggle"><input type="checkbox" id="editTaskProof"/><span class="toggle-slider"></span></label>
+        </div>
       </div>
       <div id="taskVisibilityFields">
         <div><label for="editTaskVisibleTo">Visible to</label><select id="editTaskVisibleTo"></select></div>
@@ -882,6 +886,13 @@
         Save profile
       </button>
       <div id="profileSavedMsg" style="font-size:12px;color:#6abf6a;min-height:16px;text-align:center"></div>
+      <hr class="divider" style="margin:8px 0"/>
+      <div class="section-head" style="margin-bottom:8px">Change password</div>
+      <div><label for="profileCurrentPw">Current password</label><input type="password" id="profileCurrentPw" placeholder="Current password"/></div>
+      <div><label for="profileNewPw">New password</label><input type="password" id="profileNewPw" placeholder="At least 8 characters"/></div>
+      <div><label for="profileNewPw2">Confirm new password</label><input type="password" id="profileNewPw2" placeholder="Repeat new password"/></div>
+      <button class="add-btn" style="background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border)" onclick="changePassword()">Change password</button>
+      <div id="pwChangeMsg" style="font-size:12px;min-height:16px;text-align:center"></div>
     </div>
   </div>
 
@@ -2151,7 +2162,30 @@ function renderPartnerProfileView() {
   document.getElementById('screen-profile').appendChild(section);
 }
 
-async function saveProfile() {
+async function changePassword() {
+  const current = document.getElementById('profileCurrentPw').value;
+  const newPw   = document.getElementById('profileNewPw').value;
+  const confirm = document.getElementById('profileNewPw2').value;
+  const msg     = document.getElementById('pwChangeMsg');
+  msg.style.color = '#e06060'; msg.textContent = '';
+  if (!current) { msg.textContent = 'Please enter your current password'; return; }
+  if (newPw.length < 8) { msg.textContent = 'New password must be at least 8 characters'; return; }
+  if (newPw !== confirm) { msg.textContent = 'Passwords do not match'; return; }
+  try {
+    const res = await fetch('/api/change-password', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ currentPassword: current, newPassword: newPw }) });
+    const data = await res.json();
+    if (res.ok) {
+      msg.style.color = '#6abf6a';
+      msg.textContent = '✓ Password changed';
+      document.getElementById('profileCurrentPw').value = '';
+      document.getElementById('profileNewPw').value = '';
+      document.getElementById('profileNewPw2').value = '';
+    } else {
+      msg.textContent = data.error || 'Failed to change password';
+    }
+  } catch(e) { msg.textContent = 'Connection error'; }
+}
   const username = document.getElementById('profileUsername').value.trim().toLowerCase();
   const nickname = document.getElementById('profileNickname').value.trim();
   const role     = document.getElementById('profileRole').value;
@@ -2308,6 +2342,7 @@ function openTaskEdit(task, canEditContent, canEditVisibility) {
     document.getElementById('editTaskName').value = task.name || '';
     document.getElementById('editTaskDesc').value = task.desc || '';
     document.getElementById('editTaskPts').value = task.pts || '';
+    document.getElementById('editTaskProof').checked = !!task.requireProof;
   }
   // Visibility — always shown to profile owner, even on completed tasks
   document.getElementById('taskVisibilityFields').style.display = canEditVisibility ? 'block' : 'none';
@@ -2342,14 +2377,15 @@ async function saveTaskEdit() {
   const { task, canEditContent, canEditVisibility } = editingTask;
   try {
     if (canEditContent && document.getElementById('taskEditFields').style.display !== 'none') {
-      const name = document.getElementById('editTaskName').value.trim();
-      const desc = document.getElementById('editTaskDesc').value.trim();
-      const pts  = parseInt(document.getElementById('editTaskPts').value);
+      const name        = document.getElementById('editTaskName').value.trim();
+      const desc        = document.getElementById('editTaskDesc').value.trim();
+      const pts         = parseInt(document.getElementById('editTaskPts').value);
+      const requireProof = document.getElementById('editTaskProof').checked;
       if (!name) { document.getElementById('editTaskName').focus(); return; }
       if (!pts || pts < 1) { document.getElementById('editTaskPts').focus(); return; }
-      task.name = name; task.desc = desc; task.pts = pts;
+      task.name = name; task.desc = desc; task.pts = pts; task.requireProof = requireProof;
       const res = await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-        body: JSON.stringify({ taskId: task.id, name, desc, pts, updateVisibility: false }) });
+        body: JSON.stringify({ taskId: task.id, name, desc, pts, requireProof, updateVisibility: false }) });
       if (!res.ok) { const d=await res.json(); toast(d.error||'Content save failed','error'); return; }
     }
     if (canEditVisibility && document.getElementById('taskVisibilityFields').style.display !== 'none') {
@@ -2791,94 +2827,59 @@ function getProofViewerIds(taskOwnerProfile) {
 }
 
 // ── Album ──────────────────────────────────────────────────────
-function openAlbum() {
+async function openAlbum() {
   const grid = document.getElementById('albumGrid');
-  grid.innerHTML = '';
-  // Collect all saved proof keys from all tasks across all profiles
-  const savedProofs = [];
-  const profiles = [currentUser.userId];
-  if (currentUser.partnerId) profiles.push(currentUser.partnerId);
-  profiles.forEach(pid => {
-    const p = state[pid] || {};
-    // Check days tasks
-    Object.values(p.days || {}).forEach(day => {
-      (day.tasks || []).forEach(t => {
-        if (t.proof && t.proof.state === 'approved' && t.proof.key &&
-            t.proof.savedBy && t.proof.savedBy[currentUser.userId]) {
-          savedProofs.push({ key: t.proof.key, name: t.name, profile: pid });
-        }
-      });
-    });
-    // Check assigned tasks
-    (p.assigned || []).forEach(t => {
-      if (t.proof && t.proof.state === 'approved' && t.proof.key &&
-          t.proof.savedBy && t.proof.savedBy[currentUser.userId]) {
-        savedProofs.push({ key: t.proof.key, name: t.name, profile: pid });
-      }
-    });
-  });
-  // Also check _proofs for saved flag
-  const proofs = state._proofs || {};
-  const savedKeys = Object.values(proofs).filter(p =>
-    p.saved && p.saved[currentUser.userId]
-  );
-  savedKeys.forEach(p => {
-    if (!savedProofs.find(x => x.key === p.key)) {
-      savedProofs.push({ key: p.key, name: 'Saved photo', profile: p.uploadedBy });
+  grid.innerHTML = '<div class="album-empty">Loading…</div>';
+  document.getElementById('albumModal').classList.remove('hidden');
+  try {
+    const res = await fetch('/api/proof/album', { credentials:'include' });
+    const photos = await res.json();
+    grid.innerHTML = '';
+    if (!photos.length) {
+      grid.innerHTML = '<div class="album-empty">No saved photos yet.<br/>Save photos when reviewing proof to build your album.</div>';
+      return;
     }
-  });
-  if (!savedProofs.length) {
-    grid.innerHTML = '<div class="album-empty">No saved photos yet.<br/>Save photos when reviewing proof to build your album.</div>';
-  } else {
-    savedProofs.forEach(item => {
+    photos.forEach(item => {
       const el = document.createElement('div');
       el.className = 'album-item';
-      const profileName = item.profile === currentUser.userId
+      const uploaderName = item.uploadedBy === currentUser.userId
         ? (currentUser.nickname || 'You')
         : (currentUser.partnerNickname || 'Partner');
       el.innerHTML = `
-        <img src="/api/proof/thumb?key=${encodeURIComponent(item.key)}" alt="${esc(item.name)}" onerror="this.parentElement.style.display='none'"/>
-        <div class="album-item-label">${esc(item.name)}</div>`;
-      el.onclick = () => openProofModal(item.key, false, {}, ()=>{}, ()=>{}, true);
+        <img src="/api/proof/thumb?key=${encodeURIComponent(item.key)}" alt="${esc(item.taskName)}" onerror="this.parentElement.style.display='none'"/>
+        <div class="album-item-name">${esc(item.taskName)}</div>
+        <div class="album-item-meta">${esc(uploaderName)}</div>
+        <div class="album-item-actions">
+          <button class="album-save-btn" data-key="${esc(item.key)}">Save to device</button>
+          <button class="album-remove-btn" data-key="${esc(item.key)}">Remove</button>
+        </div>`;
+      el.querySelector('.album-save-btn').onclick = () => downloadProof(item.key);
+      el.querySelector('.album-remove-btn').onclick = async () => {
+        await fetch('/api/proof/decide', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+          body: JSON.stringify({ key: item.key, save: false }) });
+        openAlbum();
+      };
       grid.appendChild(el);
     });
+  } catch(e) {
+    grid.innerHTML = '<div class="album-empty">Could not load album.</div>';
+    console.error('Album load error:', e);
   }
-  document.getElementById('albumModal').classList.remove('hidden');
 }
 
 function closeAlbum() {
   document.getElementById('albumModal').classList.add('hidden');
 }
 
-function saveProofToDevice() {
-  const img = document.getElementById('proofModalImg');
-  if (!img.src) return;
-  const a = document.createElement('a');
-  a.href = img.src;
-  a.download = 'kinkpoints-proof.jpg';
-  a.target = '_blank';
-  a.click();
-}
-
-async function removeFromAlbum(key) {
-  if (!confirm('Remove this photo from your album? This will delete it permanently.')) return;
-  await fetch('/api/proof/decide', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, action: 'delete' })
-  });
-  // Remove savedBy flag from any task that has this key
-  ['gg','dad'].forEach(pid => {
-    const p = state[pid];
-    if (!p) return;
-    Object.values(p.days||{}).forEach(day=>{
-      (day.tasks||[]).forEach(t=>{ if(t.proof?.key===key && t.proof.savedBy) delete t.proof.savedBy[currentUser.userId]; });
-    });
-    (p.assigned||[]).forEach(t=>{ if(t.proof?.key===key && t.proof.savedBy) delete t.proof.savedBy[currentUser.userId]; });
-  });
-  scheduleSave();
-  closeProofModal();
-  openAlbum(); // refresh album view
+async function downloadProof(key) {
+  const res = await fetch('/api/proof/view', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body: JSON.stringify({ key }) });
+  const data = await res.json();
+  if (data.url) {
+    const a = document.createElement('a');
+    a.href = data.url; a.download = 'kinkpoints-proof.jpg'; a.target = '_blank';
+    a.click();
+  }
 }
 
 function triggerFileUpload(taskRef, taskType, onUploaded) {
