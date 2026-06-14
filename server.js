@@ -9,7 +9,55 @@ const HTML_FILE  = path.join(__dirname, 'index.html');
 const PASSWORD   = process.env.APP_PASSWORD || 'interesting';
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
-console.log('Server v7 starting — full auth system');
+console.log('Server v8 starting — photo proof support');
+
+// ── R2 / S3 storage ────────────────────────────────────────────
+const R2_ENDPOINT   = process.env.R2_ENDPOINT || '';
+const R2_BUCKET     = process.env.R2_BUCKET_NAME || 'kinkpoints-proofs';
+const R2_ACCESS_KEY = process.env.R2_ACCESS_KEY_ID || '';
+const R2_SECRET_KEY = process.env.R2_SECRET_ACCESS_KEY || '';
+
+let s3Client = null;
+let s3Presigner = null;
+
+function initR2() {
+  if (!R2_ENDPOINT || !R2_ACCESS_KEY || !R2_SECRET_KEY) {
+    console.log('R2 not configured — photo proof disabled');
+    return;
+  }
+  try {
+    const { S3Client } = require('@aws-sdk/client-s3');
+    const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+    s3Client = new S3Client({
+      region: 'auto',
+      endpoint: R2_ENDPOINT,
+      credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY }
+    });
+    s3Presigner = getSignedUrl;
+    console.log('R2 storage ready');
+  } catch(e) {
+    console.error('R2 init failed:', e.message);
+  }
+}
+
+async function uploadToR2(key, buffer, contentType) {
+  const { PutObjectCommand } = require('@aws-sdk/client-s3');
+  await s3Client.send(new PutObjectCommand({
+    Bucket: R2_BUCKET, Key: key, Body: buffer, ContentType: contentType
+  }));
+}
+
+async function getSignedViewUrl(key) {
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  return await s3Presigner(s3Client, new GetObjectCommand({
+    Bucket: R2_BUCKET, Key: key
+  }), { expiresIn: 900 }); // 15 minutes
+}
+
+async function deleteFromR2(key) {
+  const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+  await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
 
 // ── Password hashing ───────────────────────────────────────────
 function hashPassword(password) {
@@ -500,13 +548,168 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Photo proof upload ─────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/proof/upload') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    if (!s3Client) { json(res, { error: 'Photo storage not configured' }, 503); return; }
+
+    // Read multipart body — simple raw buffer approach
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', async () => {
+      try {
+        const contentType = req.headers['content-type'] || 'image/jpeg';
+        const taskId      = req.headers['x-task-id'] || uid();
+        const taskType    = req.headers['x-task-type'] || 'daily';
+        const viewerIds   = (req.headers['x-viewer-ids'] || '').split(',').filter(Boolean);
+        const buffer      = Buffer.concat(chunks);
+
+        // Max 10MB
+        if (buffer.length > 10 * 1024 * 1024) {
+          json(res, { error: 'Photo too large (max 10MB)' }, 413); return;
+        }
+
+        const ext = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : 'jpg';
+        const key = `proofs/${userId}/${taskId}/${uid()}.${ext}`;
+
+        await uploadToR2(key, buffer, contentType);
+
+        // Store proof record in app data
+        const state = await readData();
+        if (!state._proofs) state._proofs = {};
+        state._proofs[key] = {
+          key, uploadedBy: userId, taskId, taskType,
+          viewerIds, uploadedAt: Date.now(),
+          viewed: {}, saved: {}
+        };
+        await writeData(state);
+
+        json(res, { ok: true, key });
+      } catch(e) {
+        console.error('Upload error:', e.message);
+        json(res, { error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  // ── Get signed view URL ────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/proof/view') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    if (!s3Client) { json(res, { error: 'Photo storage not configured' }, 503); return; }
+    try {
+      const { key } = await parseBody(req);
+      const state = await readData();
+      const proof = state._proofs && state._proofs[key];
+      if (!proof) { json(res, { error: 'Proof not found' }, 404); return; }
+      // Check viewer is authorized
+      if (proof.uploadedBy !== userId && !proof.viewerIds.includes(userId)) {
+        json(res, { error: 'Not authorized to view this proof' }, 403); return;
+      }
+      const signedUrl = await getSignedViewUrl(key);
+      // Mark as viewed by this user
+      if (!state._proofs[key].viewed) state._proofs[key].viewed = {};
+      state._proofs[key].viewed[userId] = Date.now();
+      await writeData(state);
+      json(res, { ok: true, url: signedUrl });
+    } catch(e) {
+      json(res, { error: e.message }, 500);
+    }
+    return;
+  }
+
+  // ── Save or delete proof ───────────────────────────────────
+  if (req.method === 'POST' && url === '/api/proof/decide') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { key, action } = await parseBody(req); // action: 'save' | 'delete'
+      const state = await readData();
+      const proof = state._proofs && state._proofs[key];
+      if (!proof) { json(res, { error: 'Proof not found' }, 404); return; }
+      if (action === 'save') {
+        state._proofs[key].saved[userId] = true;
+        await writeData(state);
+        json(res, { ok: true });
+      } else {
+        // Check if anyone else saved it
+        const othersSaved = Object.entries(state._proofs[key].saved || {})
+          .some(([uid, val]) => uid !== userId && val);
+        if (!othersSaved) {
+          // Safe to delete from R2
+          await deleteFromR2(key);
+          delete state._proofs[key];
+        } else {
+          // Others saved it — just remove this user's save flag
+          state._proofs[key].saved[userId] = false;
+        }
+        await writeData(state);
+        json(res, { ok: true });
+      }
+    } catch(e) {
+      json(res, { error: e.message }, 500);
+    }
+    return;
+  }
+
+  // ── Get pending proofs for current user ────────────────────
+  if (req.method === 'GET' && url === '/api/proof/pending') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const state = await readData();
+      const proofs = state._proofs || {};
+      const pending = Object.values(proofs).filter(p =>
+        p.viewerIds.includes(userId) && !p.viewed[userId]
+      );
+      json(res, { proofs: pending });
+    } catch(e) {
+      json(res, { error: e.message }, 500);
+    }
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 
+// ── Photo cleanup job — runs daily, deletes unviewed proofs older than 7 days ──
+function scheduleProofCleanup() {
+  async function runCleanup() {
+    console.log('Running photo proof cleanup…');
+    try {
+      const state = await readData();
+      if (!state._proofs) return;
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      let changed = false;
+      for (const [key, proof] of Object.entries(state._proofs)) {
+        const allViewersSaved = proof.viewerIds.every(vid => proof.saved && proof.saved[vid]);
+        const isOld = proof.uploadedAt < cutoff;
+        const noViewers = !proof.viewerIds.length;
+        if ((isOld && !allViewersSaved) || noViewers) {
+          try { await deleteFromR2(key); } catch(e) { console.error('R2 delete error:', e.message); }
+          delete state._proofs[key];
+          changed = true;
+          console.log(`Cleaned up proof: ${key}`);
+        }
+      }
+      if (changed) await writeData(state);
+    } catch(e) {
+      console.error('Proof cleanup error:', e.message);
+    }
+    setTimeout(runCleanup, 24 * 60 * 60 * 1000);
+  }
+  setTimeout(runCleanup, 60 * 60 * 1000); // first run in 1 hour
+  console.log('Photo proof cleanup scheduled');
+}
+
 // ── Boot ───────────────────────────────────────────────────────
+initR2();
 initDb().then(() => {
   server.listen(PORT, () => {
     console.log(`Task Points server running on port ${PORT}`);
     scheduleDailyReminders();
+    if (s3Client) scheduleProofCleanup();
   });
 });

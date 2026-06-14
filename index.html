@@ -198,6 +198,25 @@
   .add-btn svg{width:16px;height:16px}
   .divider{border:none;border-top:1px solid var(--border-light);margin:1.5rem 0}
 
+  /* ── Photo proof ── */
+  .proof-required-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2d1a2d;color:#c084e0;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .proof-upload-area{border:1.5px dashed var(--border);border-radius:var(--radius-lg);padding:1.25rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:8px}
+  .proof-upload-area:hover{border-color:var(--accent-mid);background:var(--accent-bg)}
+  .proof-upload-area input{display:none}
+  .proof-upload-label{font-size:13px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+  .proof-upload-label svg{width:28px;height:28px;color:var(--text-muted);opacity:.5}
+  .proof-preview{width:100%;max-height:200px;object-fit:cover;border-radius:var(--radius-md);margin-top:8px;display:none}
+  .proof-btn{height:30px;padding:0 12px;border:1px solid #7c3aad;background:#2d1a2d;color:#c084e0;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .proof-btn:hover{background:#3d1f3d;border-color:#c084e0}
+  .proof-view-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:1rem;gap:1rem}
+  .proof-view-modal.hidden{display:none}
+  .proof-view-modal img{max-width:100%;max-height:70vh;border-radius:var(--radius-lg);object-fit:contain}
+  .proof-modal-actions{display:flex;gap:10px}
+  .proof-save-btn{height:40px;padding:0 20px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer}
+  .proof-delete-btn{height:40px;padding:0 20px;background:transparent;color:#f09595;border:1px solid #f09595;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer}
+  .proof-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+  .proof-toggle-label{font-size:13px;color:var(--text-primary);font-weight:500}
+
   /* ── Permission toggles ── */
   .permissions-section{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.25rem;margin-top:1.5rem}
   .permissions-title{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem}
@@ -247,7 +266,7 @@
   .fulfilled-badge{font-size:11px;font-weight:600;color:var(--text-muted);padding:3px 8px;border-radius:20px;background:var(--bg-done);border:1px solid var(--border-light)}
 
   /* ── Icon picker ── */
-  .icon-picker{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:4px}
+  .icon-picker{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:4px}
   .icon-opt{width:100%;aspect-ratio:1;border-radius:var(--radius-md);border:1.5px solid var(--border);background:var(--bg-input);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;padding:6px}
   .icon-opt svg{width:100%;height:100%;color:var(--text-muted)}
   .icon-opt:hover{border-color:var(--accent-mid);background:var(--accent-bg)}
@@ -268,6 +287,15 @@
 </style>
 </head>
 <body class="theme-default">
+
+<!-- Photo proof view modal -->
+<div class="proof-view-modal hidden" id="proofModal">
+  <img id="proofModalImg" src="" alt="Proof photo"/>
+  <div class="proof-modal-actions">
+    <button class="proof-save-btn" onclick="decideProof('save')">Save photo</button>
+    <button class="proof-delete-btn" onclick="decideProof('delete')">Delete</button>
+  </div>
+</div>
 
 <!-- ── Login screen ── -->
 <div id="loginScreen">
@@ -400,6 +428,13 @@
         <div><label for="taskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="taskDesc" rows="2" placeholder="Any notes or details…" maxlength="200"></textarea></div>
         <div class="assigned-fields" id="assignedFields">
           <div><label for="taskExpiry">Expires on</label><input type="date" id="taskExpiry"/></div>
+        </div>
+        <div class="proof-toggle-row">
+          <span class="proof-toggle-label">Require photo proof to complete</span>
+          <label class="toggle">
+            <input type="checkbox" id="requireProof"/>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
         <div class="form-row">
           <div><label for="taskPts">Point value</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
@@ -748,20 +783,56 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function makeTaskRow(opts) {
   const row = document.createElement('div');
   row.className = 'task-row'+(opts.done?' done':'')+(opts.extraClass?' '+opts.extraClass:'');
-  const checkDisabled = opts.checkDisabled ? ' disabled' : '';
+  const checkDisabled = opts.checkDisabled || (opts.requireProof && !opts.done && !opts.proofKey);
   row.innerHTML = `
-    <div class="task-check${checkDisabled}">${checkSVG()}</div>
+    <div class="task-check${checkDisabled?' disabled':''}">${checkSVG()}</div>
     <div class="task-body">
       <div class="task-name">${esc(opts.name)}</div>
       ${opts.desc?`<div class="task-desc">${esc(opts.desc)}</div>`:''}
     </div>
     <div class="task-right">
       <span class="pts-badge">${opts.pts} pts</span>
+      ${opts.requireProof && !opts.done ? `<span class="proof-required-badge">📷 Proof</span>` : ''}
+      ${opts.proofKey && opts.isViewer ? `<button class="proof-btn" data-key="${opts.proofKey}">View proof</button>` : ''}
       ${opts.extraButtons||''}
       ${opts.showDelete!==false?`<button class="task-delete">${trashSVG()}</button>`:''}
     </div>`;
-  if (!opts.checkDisabled) row.querySelector('.task-check').onclick = opts.onCheck;
+  // Check button — if proof required and not done, show upload instead
+  const checkEl = row.querySelector('.task-check');
+  if (!opts.checkDisabled) {
+    if (opts.requireProof && !opts.done && !opts.proofKey) {
+      // Need to upload proof first — clicking opens file picker
+      checkEl.title = 'Upload photo proof to complete';
+      checkEl.onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.capture = 'environment';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          checkEl.style.opacity = '0.5';
+          try {
+            const viewerIds = getProofViewerIds(viewingProfile);
+            const key = await uploadProof(file, opts.taskId, opts.taskType, viewerIds);
+            opts.proofKey = key;
+            opts.onCheck(key); // pass key to completion handler
+          } catch(err) {
+            console.error('Upload failed:', err);
+            alert('Photo upload failed — please try again');
+          }
+          checkEl.style.opacity = '';
+        };
+        input.click();
+      };
+    } else {
+      checkEl.onclick = () => opts.onCheck();
+    }
+  }
   if (opts.showDelete!==false) row.querySelector('.task-delete').onclick = opts.onDelete;
+  // View proof button
+  const viewBtn = row.querySelector('.proof-btn');
+  if (viewBtn) viewBtn.onclick = () => viewProof(viewBtn.dataset.key);
   return row;
 }
 
@@ -830,12 +901,16 @@ function renderAssigned() {
     const rowExtra='assigned-row'+(expiryCls==='soon'?' expiring-soon':'');
     // Own profile = can check off. Partner's assigned tasks viewed by partner = can check. Viewing partner's profile = read only
     const canCheck = isOwnProfile() && !isExpired;
+    const proofs = state._proofs || {};
+    const taskProof = Object.values(proofs).find(p=>p.taskId===t.id && p.viewerIds.includes(currentUser.userId));
     const row=makeTaskRow({
-      done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:rowExtra,
-      extraButtons:expiryTag,checkDisabled:!canCheck,showDelete:isOwnProfile(),
-      onCheck:()=>{
+      done:isDone, name:t.name, desc:t.desc, pts:t.pts, extraClass:rowExtra,
+      extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:isOwnProfile(),
+      requireProof:t.requireProof, taskId:t.id, taskType:'assigned',
+      proofKey: taskProof?.key, isViewer: !!taskProof,
+      onCheck:(proofKey)=>{
         if (isDone){const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=null;}
-        else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=selectedDate;}
+        else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0){p.assigned[idx].completedOn=selectedDate;if(proofKey)p.assigned[idx].proofKey=proofKey;}}
         scheduleSave();renderTracker();
       },
       onDelete:()=>{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned.splice(idx,1);scheduleSave();renderTracker();}
@@ -883,8 +958,18 @@ function renderDaily() {
   if(!tasks.length&&!repeating.length){list.innerHTML=`<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1"/></svg>No tasks for this day${isOwnProfile()?' — add one below':''}</div>`;return;}
   tasks.forEach((t,i)=>{
     const canCheck=isOwnProfile();
-    const row=makeTaskRow({done:t.done,name:t.name,desc:t.desc,pts:t.pts,checkDisabled:!canCheck,showDelete:isOwnProfile(),
-      onCheck:()=>{getDayTasks(selectedDate)[i].done^=true;scheduleSave();renderTracker();},
+    const proofs = state._proofs || {};
+    const taskProof = Object.values(proofs).find(p=>p.taskId===t.id && p.viewerIds.includes(currentUser.userId));
+    const row=makeTaskRow({
+      done:t.done, name:t.name, desc:t.desc, pts:t.pts,
+      checkDisabled:!canCheck, showDelete:isOwnProfile(),
+      requireProof:t.requireProof, taskId:t.id, taskType:'daily',
+      proofKey: taskProof?.key, isViewer: !!taskProof,
+      onCheck:(proofKey)=>{
+        getDayTasks(selectedDate)[i].done^=true;
+        if (proofKey) getDayTasks(selectedDate)[i].proofKey = proofKey;
+        scheduleSave();renderTracker();
+      },
       onDelete:()=>{ps().days[selectedDate].tasks.splice(i,1);scheduleSave();renderTracker();}
     });
     list.appendChild(row);
@@ -1190,6 +1275,9 @@ function renderProfile() {
     const opt = Array.from(roleSelect.options).find(o=>o.value===p.role);
     if (opt) roleSelect.value = p.role;
   }
+  // Remove permissions section if it exists from a previous partner view
+  const existingPerms = document.getElementById('permissionsSection');
+  if (existingPerms) existingPerms.remove();
   // Show edit form
   document.querySelector('#screen-profile .divider').style.display='';
   document.querySelectorAll('#screen-profile .section-head').forEach(el=>el.style.display='');
@@ -1283,21 +1371,23 @@ function addTask() {
   const pts=parseInt(document.getElementById('taskPts').value);
   if(!name){document.getElementById('taskName').focus();return;}
   if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
-  if(addType==='monthly'){const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts});}
-  else if(addType==='repeat'){ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate});}
+  const requireProof = document.getElementById('requireProof').checked;
+  if(addType==='monthly'){const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof});}
+  else if(addType==='repeat'){ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof});}
   else if(addType==='assigned'){
     const expiry=document.getElementById('taskExpiry').value;
     if(!expiry){document.getElementById('taskExpiry').focus();return;}
-    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null};
+    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof};
     ps(viewingProfile).assigned.push(task);
     document.getElementById('taskExpiry').value='';
     notifyAssigned(task,expiry);
   } else {
-    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false});
+    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof});
   }
   document.getElementById('taskName').value='';
   document.getElementById('taskDesc').value='';
   document.getElementById('taskPts').value='';
+  document.getElementById('requireProof').checked=false;
   scheduleSave();renderTracker();
   document.getElementById('taskName').focus();
 }
@@ -1338,28 +1428,45 @@ setInterval(()=>{if(!saveTimer&&currentUser)loadFromServer();},30000);
 
 // ── Icons ──────────────────────────────────────────────────────
 const ICONS = {
-  heart:    `<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>`,
-  star:     `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
-  crown:    `<path d="M2 20h20"/><path d="M5 20V10l7-7 7 7v10"/>`,
-  moon:     `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`,
-  sun:      `<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`,
-  lock:     `<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
-  key:      `<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>`,
-  diamond:  `<path d="M6 3h12l4 6-10 13L2 9 6 3z"/><path d="M11 3L8 9l4 13 4-13-3-6"/><path d="M2 9h20"/>`,
-  flame:    `<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>`,
-  butterfly:`<path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4z"/><path d="M12 12c2-2.5 4-4 6-4a4 4 0 0 1 0 8c-2 0-4-1.5-6-4z"/><path d="M12 12v4"/><circle cx="12" cy="17" r="1"/>`,
-  rose:     `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
-  paw:      `<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/><circle cx="4" cy="8" r="2"/>`,
-  sparkle:  `<path d="M12 3l1.5 5h5l-4 3 1.5 5-4-3-4 3 1.5-5-4-3h5z"/><path d="M5 7.5L4 5l-2-.5 2-.5L5 2l.5 2L8 4.5 5.5 5z"/><path d="M19 15.5l-1-2.5-2-.5 2-.5 1-2.5.5 2.5 2.5.5-2.5.5z"/>`,
-  shield:   `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
-  feather:  `<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/>`,
-  infinity: `<path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4z"/><path d="M12 12c2 2.5 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.5-6 4z"/>`,
+  heart:       `<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>`,
+  star:        `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+  crown:       `<path d="M2 20h20"/><path d="M5 20V10l7-7 7 7v10"/>`,
+  moon:        `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`,
+  sun:         `<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`,
+  lock:        `<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
+  key:         `<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>`,
+  diamond:     `<path d="M6 3h12l4 6-10 13L2 9 6 3z"/><path d="M11 3L8 9l4 13 4-13-3-6"/><path d="M2 9h20"/>`,
+  flame:       `<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>`,
+  butterfly:   `<path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4z"/><path d="M12 12c2-2.5 4-4 6-4a4 4 0 0 1 0 8c-2 0-4-1.5-6-4z"/><path d="M12 12v4"/><circle cx="12" cy="17" r="1"/>`,
+  rose:        `<path d="M12 22V12"/><path d="M12 12C12 6 6 4 6 4s0 6 6 8"/><path d="M12 12c0-6 6-8 6-8s0 6-6 8"/><path d="M12 12C8 8 4 9 4 9s2 4 8 3"/><path d="M12 12c4-4 8-3 8-3s-2 4-8 3"/>`,
+  paw:         `<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/><circle cx="4" cy="8" r="2"/>`,
+  sparkle:     `<path d="M12 3l1.5 5h5l-4 3 1.5 5-4-3-4 3 1.5-5-4-3h5z"/><path d="M5 7.5L4 5l-2-.5 2-.5L5 2l.5 2L8 4.5 5.5 5z"/><path d="M19 15.5l-1-2.5-2-.5 2-.5 1-2.5.5 2.5 2.5.5-2.5.5z"/>`,
+  shield:      `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+  feather:     `<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/>`,
+  infinity:    `<path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4z"/><path d="M12 12c2 2.5 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.5-6 4z"/>`,
+  // ── Zodiac ──────────────────────────────────────────────────
+  aries:       `<path d="M12 12c0-4-3-7-3-7s-3 3-3 7"/><path d="M12 12c0-4 3-7 3-7s3 3 3 7"/><line x1="12" y1="12" x2="12" y2="20"/>`,
+  taurus:      `<circle cx="12" cy="14" r="6"/><path d="M6 14C6 10 9 7 12 7s6 3 6 7"/><path d="M9 7C9 5 10 3 12 3s3 2 3 4"/>`,
+  gemini:      `<line x1="8" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="16" y2="21"/><line x1="8" y1="3" x2="16" y2="3"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="8" y1="12" x2="16" y2="12"/>`,
+  cancer:      `<path d="M12 4C8 4 5 7 5 11s3 7 7 7"/><path d="M12 20c4 0 7-3 7-7s-3-7-7-7"/><circle cx="5" cy="11" r="1.5"/><circle cx="19" cy="13" r="1.5"/>`,
+  leo:         `<circle cx="12" cy="10" r="4"/><path d="M16 10c0 4-2 8-4 10"/><path d="M8 10C5 8 3 5 5 3s5 0 5 4"/>`,
+  virgo:       `<path d="M8 3v10a4 4 0 0 0 8 0V3"/><path d="M8 3h2"/><path d="M12 3h2"/><path d="M8 7h8"/><path d="M16 13c0 4-1 6-4 8"/>`,
+  libra:       `<line x1="3" y1="20" x2="21" y2="20"/><line x1="12" y1="20" x2="12" y2="8"/><path d="M7 14a5 5 0 0 1 10 0"/><line x1="3" y1="8" x2="21" y2="8"/>`,
+  scorpio:     `<path d="M8 3v12"/><path d="M16 3v10c0 2 2 4 4 4"/><path d="M8 3h8"/><path d="M8 9h8"/><path d="M20 17l2 2-2 2"/>`,
+  sagittarius: `<line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/><line x1="3" y1="21" x2="9" y2="15"/>`,
+  capricorn:   `<path d="M5 19V7a4 4 0 0 1 8 0v6a4 4 0 0 0 8 0V7"/><line x1="5" y1="19" x2="13" y2="19"/>`,
+  aquarius:    `<path d="M3 8c3-4 6 4 9 0s6 4 9 0"/><path d="M3 16c3-4 6 4 9 0s6 4 9 0"/>`,
+  pisces:      `<path d="M4 12h16"/><path d="M8 6c-2 2-4 4-4 6s2 4 4 6"/><path d="M16 6c2 2 4 4 4 6s-2 4-4 6"/>`,
 };
 
 const ICON_LABELS = {
   heart:'Heart', star:'Star', crown:'Crown', moon:'Moon', sun:'Sun',
   lock:'Lock', key:'Key', diamond:'Diamond', flame:'Flame', butterfly:'Butterfly',
-  rose:'Shield', paw:'Paw', sparkle:'Sparkle', shield:'Rose', feather:'Feather', infinity:'Infinity'
+  rose:'Rose', paw:'Paw', sparkle:'Sparkle', shield:'Shield',
+  feather:'Feather', infinity:'Infinity',
+  aries:'Aries ♈', taurus:'Taurus ♉', gemini:'Gemini ♊', cancer:'Cancer ♋',
+  leo:'Leo ♌', virgo:'Virgo ♍', libra:'Libra ♎', scorpio:'Scorpio ♏',
+  sagittarius:'Sagittarius ♐', capricorn:'Capricorn ♑', aquarius:'Aquarius ♒', pisces:'Pisces ♓',
 };
 
 let selectedIcon = 'heart';
@@ -1386,6 +1493,62 @@ function renderIconPicker(currentIconId) {
     };
     picker.appendChild(btn);
   });
+}
+
+// ── Photo proof ────────────────────────────────────────────────
+let currentProofKey = null; // key being viewed in modal
+
+async function uploadProof(file, taskId, taskType, viewerIds) {
+  const res = await fetch('/api/proof/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type,
+      'X-Task-Id': taskId,
+      'X-Task-Type': taskType,
+      'X-Viewer-Ids': viewerIds.join(',')
+    },
+    body: file
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data.key;
+}
+
+async function viewProof(key) {
+  const res = await fetch('/api/proof/view', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  currentProofKey = key;
+  document.getElementById('proofModalImg').src = data.url;
+  document.getElementById('proofModal').classList.remove('hidden');
+}
+
+async function decideProof(action) {
+  if (!currentProofKey) return;
+  await fetch('/api/proof/decide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: currentProofKey, action })
+  });
+  document.getElementById('proofModal').classList.add('hidden');
+  document.getElementById('proofModalImg').src = '';
+  currentProofKey = null;
+}
+
+// Get viewer IDs for a task — who should see the proof
+function getProofViewerIds(taskOwnerProfile) {
+  // If task is on partner's profile, we (the assigner) see the proof
+  // If task is on own profile, partner sees the proof
+  if (taskOwnerProfile !== currentUser.userId) {
+    return [currentUser.userId]; // assigner sees proof
+  }
+  // Own profile — partner(s) see proof
+  if (currentUser.partnerId) return [currentUser.partnerId];
+  return [];
 }
 
 // ── Boot ───────────────────────────────────────────────────────

@@ -1,13 +1,15 @@
 {
   "name": "task-points-tracker",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Shared task points tracker",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "pg": "^8.11.0"
+    "pg": "^8.11.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
   },
   "engines": {
     "node": ">=18"
