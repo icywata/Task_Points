@@ -670,9 +670,12 @@ const server = http.createServer(async (req, res) => {
         partnerId: partnership?.partnerId || null,
         partnershipId: partnership?.partnershipId || null,
         partnerNickname: partnerData?.nickname || null,
+        partnerFirstName: partnerData?.first_name || null,
+        partnerLastName: partnerData?.last_name || null,
         partnerRole: partnerData?.role || null,
         partnerIcon: partnerData?.icon || null,
         partnerTheme: partnerData?.theme || null,
+        partnerEmail: partnerData?.notification_email || null,
       });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;

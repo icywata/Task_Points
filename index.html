@@ -874,10 +874,10 @@ function renderProfileSwitcher() {
   const sw = document.getElementById('profileSwitcher');
   sw.innerHTML = '';
   const profiles = [
-    { id: currentUser.userId, nickname: currentUser.nickname, role: currentUser.role, icon: ps(currentUser.userId).icon || 'heart', isYou: true },
+    { id: currentUser.userId, nickname: currentUser.nickname, role: currentUser.role, icon: currentUser.icon || 'heart', isYou: true },
   ];
   if (currentUser.partnerId) {
-    profiles.push({ id: currentUser.partnerId, nickname: currentUser.partnerNickname, role: currentUser.partnerRole, icon: ps(currentUser.partnerId).icon || 'star', isYou: false });
+    profiles.push({ id: currentUser.partnerId, nickname: currentUser.partnerNickname, role: currentUser.partnerRole, icon: currentUser.partnerIcon || 'star', isYou: false });
   }
   profiles.forEach(p => {
     const isActive = viewingProfile === p.id;
@@ -1420,29 +1420,30 @@ function savePermission(partnerId, key, value) {
 
 // ── Profile screens ────────────────────────────────────────────
 function renderProfile() {
-  const p = ps(currentUser.userId);
-  const name = [p.firstName, p.lastName].filter(Boolean).join(' ') || p.nickname || 'You';
+  // Use currentUser as source of truth — it's loaded from /api/me which reads from the users table
+  const name = [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || currentUser.nickname || 'You';
   const earned = getTotalEarned(currentUser.userId);
   const balance = getBalance(currentUser.userId);
-  const icon = p.icon || 'heart';
+  const icon = currentUser.icon || 'heart';
+  const theme = currentUser.theme || 'rose';
   document.getElementById('profileInfoCard').innerHTML = `
     <div class="profile-avatar">
       ${iconSVG(icon, 30)}
     </div>
     <div>
       <div class="profile-display-name">${esc(name)}</div>
-      ${p.nickname?`<div class="profile-display-role">"${esc(p.nickname)}" · ${esc(p.role||'')}</div>`:''}
-      <div class="profile-display-email">${esc(p.notificationEmail||'No email set')}</div>
+      ${currentUser.nickname?`<div class="profile-display-role">"${esc(currentUser.nickname)}" · ${esc(currentUser.role||'')}</div>`:''}
+      <div class="profile-display-email">${esc(currentUser.email||'No email set')}</div>
       <div class="profile-display-pts">${balance} pts available · ${earned} earned</div>
     </div>`;
-  document.getElementById('profileFirstName').value = p.firstName||'';
-  document.getElementById('profileLastName').value  = p.lastName||'';
-  document.getElementById('profileNickname').value  = p.nickname||'';
-  document.getElementById('profileEmail').value     = p.notificationEmail||'';
+  document.getElementById('profileFirstName').value = currentUser.firstName||'';
+  document.getElementById('profileLastName').value  = currentUser.lastName||'';
+  document.getElementById('profileNickname').value  = currentUser.nickname||'';
+  document.getElementById('profileEmail').value     = currentUser.email||'';
   const roleSelect = document.getElementById('profileRole');
-  if (p.role) {
-    const opt = Array.from(roleSelect.options).find(o=>o.value===p.role);
-    if (opt) roleSelect.value = p.role;
+  if (currentUser.role) {
+    const opt = Array.from(roleSelect.options).find(o=>o.value===currentUser.role);
+    if (opt) roleSelect.value = currentUser.role;
   }
   // Remove permissions section if it exists from a previous partner view
   const existingPerms = document.getElementById('permissionsSection');
@@ -1452,24 +1453,22 @@ function renderProfile() {
   document.querySelectorAll('#screen-profile .section-head').forEach(el=>el.style.display='');
   document.querySelector('#screen-profile .add-form').style.display='';
   renderIconPicker(icon);
-  renderThemePicker(p.theme || 'rose');
+  renderThemePicker(theme);
 }
 
 function renderPartnerProfileView() {
   if (!currentUser.partnerId) return;
-  const p = ps(viewingProfile);
-  const name = [p.firstName,p.lastName].filter(Boolean).join(' ') || p.nickname || 'Partner';
+  const name = [currentUser.partnerFirstName, currentUser.partnerLastName].filter(Boolean).join(' ') || currentUser.partnerNickname || 'Partner';
   const earned = getTotalEarned(viewingProfile);
   const balance = getBalance(viewingProfile);
-  const icon = p.icon || 'star';
+  const icon = currentUser.partnerIcon || 'star';
   const perms = getMyPermissionsFor(viewingProfile);
-  const partnerName = p.nickname || 'Partner';
+  const partnerName = currentUser.partnerNickname || 'Partner';
   document.getElementById('profileInfoCard').innerHTML = `
     <div class="profile-avatar">${iconSVG(icon, 30)}</div>
     <div>
       <div class="profile-display-name">${esc(name)}</div>
-      ${p.nickname?`<div class="profile-display-role">"${esc(p.nickname)}" · ${esc(p.role||'')}</div>`:''}
-      <div class="profile-display-email">${esc(p.notificationEmail||'')}</div>
+      ${currentUser.partnerNickname?`<div class="profile-display-role">"${esc(currentUser.partnerNickname)}" · ${esc(currentUser.partnerRole||'')}</div>`:''}
       <div class="profile-display-pts">${balance} pts available · ${earned} earned</div>
     </div>`;
   document.querySelector('#screen-profile .divider').style.display='none';
@@ -1516,25 +1515,24 @@ async function saveProfile() {
   const icon      = selectedIcon;
   const theme     = selectedTheme;
   try {
-    await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({firstName,lastName,nickname,role,email,icon,theme})});
-    ps(currentUser.userId).firstName = firstName;
-    ps(currentUser.userId).lastName  = lastName;
-    ps(currentUser.userId).nickname  = nickname;
-    ps(currentUser.userId).role      = role;
-    ps(currentUser.userId).notificationEmail = email;
-    ps(currentUser.userId).icon      = icon;
-    ps(currentUser.userId).theme     = theme;
-    currentUser.nickname = nickname;
-    currentUser.role     = role;
-    currentUser.icon     = icon;
-    currentUser.theme    = theme;
-    scheduleSave();
+    const res = await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({firstName,lastName,nickname,role,email,icon,theme})});
+    if (!res.ok) throw new Error('Save failed');
+    // Update currentUser with new values — this is the source of truth
+    currentUser.firstName = firstName;
+    currentUser.lastName  = lastName;
+    currentUser.nickname  = nickname;
+    currentUser.role      = role;
+    currentUser.email     = email;
+    currentUser.icon      = icon;
+    currentUser.theme     = theme;
+    // Apply theme immediately
+    applyTheme(currentUser.userId);
     renderProfile();
     renderProfileSwitcher();
     const msg=document.getElementById('profileSavedMsg');
     msg.textContent='✓ Profile saved';
     setTimeout(()=>{msg.textContent='';},3000);
-  } catch(e) { console.error(e); }
+  } catch(e) { console.error(e); alert('Save failed: ' + e.message); }
 }
 
 // ── Add task ───────────────────────────────────────────────────
@@ -1581,16 +1579,23 @@ function addReward() {
   scheduleSave();renderShop();
 }
 
-async function notifyAssigned(task,expiresOn) {
-  // If assigning to self, notify partner; if partner is viewing, notify them
-  const targetId = viewingProfile; // we assign tasks on the profile we're viewing
-  const targetProfile = ps(targetId);
-  const to = targetProfile.notificationEmail;
+async function notifyAssigned(task, expiresOn) {
+  // Determine who to notify based on who we're assigning to
+  let to, firstName;
+  if (viewingProfile === currentUser.userId) {
+    // Assigning to self — notify partner
+    to = currentUser.partnerEmail || null;
+    firstName = currentUser.partnerNickname || currentUser.partnerFirstName || 'there';
+  } else {
+    // Assigning to partner
+    to = currentUser.partnerEmail || null;
+    firstName = currentUser.partnerNickname || currentUser.partnerFirstName || 'there';
+  }
   if (!to) return;
-  const firstName = targetProfile.firstName || targetProfile.nickname || 'there';
   try {
-    await fetch('/api/notify/assigned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,taskName:task.name,taskDesc:task.desc,pts:task.pts,expiresOn,profileName:firstName})});
-  } catch(e){console.log('Notification failed:',e);}
+    await fetch('/api/notify/assigned', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ to, taskName:task.name, taskDesc:task.desc, pts:task.pts, expiresOn, profileName:firstName }) });
+  } catch(e) { console.log('Notification failed:', e); }
 }
 
 // ── Keyboard ───────────────────────────────────────────────────
@@ -1615,9 +1620,16 @@ const THEMES = {
 let selectedTheme = 'rose';
 
 function applyTheme(profileId) {
-  // Get this profile's saved theme, fallback to rose
-  const profileData = state[profileId] || {};
-  const theme = profileData.theme || (profileId === 'dad' ? 'midnight' : 'rose');
+  let theme;
+  if (profileId === currentUser?.userId) {
+    theme = currentUser.theme || 'rose';
+  } else if (profileId === currentUser?.partnerId) {
+    theme = currentUser.partnerTheme || 'rose';
+  } else {
+    // Fallback during login before currentUser is set
+    const profileData = state[profileId] || {};
+    theme = profileData.theme || (profileId === 'dad' ? 'midnight' : 'rose');
+  }
   document.body.className = `theme-${theme}`;
 }
 
