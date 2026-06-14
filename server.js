@@ -799,15 +799,14 @@ const server = http.createServer(async (req, res) => {
   // ── Admin test users page ──────────────────────────────────
   if (req.method === 'GET' && url === '/admin/users') {
     res.writeHead(200, {'Content-Type':'text/html'});
-    res.end(`<!DOCTYPE html>
-<html><head><title>KinkPoints — Test Users</title>
+    const html = `<!DOCTYPE html>
+<html><head><title>KinkPoints Admin — Test Users</title>
 <style>
 body{font-family:sans-serif;max-width:700px;margin:2rem auto;padding:1rem;background:#1a1118;color:#f0dce8}
 h1,h2{color:#d4537e}
 input,select{padding:8px 12px;margin:4px 4px 4px 0;border-radius:8px;border:1px solid #444;background:#2a1c27;color:#f0dce8;font-size:14px}
 button{padding:8px 16px;margin:4px;border-radius:8px;border:none;background:#d4537e;color:#fff;font-size:14px;cursor:pointer}
 button.del{background:#7a2020}
-button.sec{background:#2a1c27;border:1px solid #444;color:#f0dce8}
 table{width:100%;border-collapse:collapse;margin-top:1rem}
 td,th{padding:8px 10px;border:1px solid #333;font-size:13px;text-align:left}
 th{background:#2a1c27;color:#d4537e}
@@ -819,7 +818,7 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
 <h1>Test Users</h1>
 <div class="row">
   <input id="adminKey" placeholder="Admin key" type="password"/>
-  <button onclick="loadUsers()">Load users</button>
+  <button id="btnLoad">Load users</button>
 </div>
 <hr/>
 <h2>Create test user</h2>
@@ -832,71 +831,87 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     <option>Dominant</option><option>Submissive</option><option>Switch</option>
     <option>Daddy</option><option>Babygirl</option><option>Master</option><option>Pet</option>
   </select>
-  <button onclick="createUser()">Create</button>
+  <button id="btnCreate">Create</button>
 </div>
 <div id="createMsg" style="margin:8px 0;min-height:20px"></div>
 <hr/>
 <div id="userList"></div>
-<script>
-function key() { return document.getElementById('adminKey').value; }
+<script type="text/javascript">
+(function() {
+  function adminKey() { return document.getElementById('adminKey').value; }
 
-async function loadUsers() {
-  const res = await fetch('/api/admin/test-users', { headers: { 'x-admin-key': key() } });
-  const data = await res.json();
-  const list = document.getElementById('userList');
-  if (!res.ok) { list.innerHTML = '<p class="err">' + (data.error||'Wrong key') + '</p>'; return; }
-  if (!data.length) { list.innerHTML = '<p style="color:#888">No test users yet</p>'; return; }
-  let html = '<table><tr><th>Username</th><th>Email</th><th>Nickname</th><th>Role</th><th>Code</th><th></th></tr>';
-  data.forEach(function(u) {
-    html += '<tr><td>@' + u.username + '</td><td>' + u.email + '</td><td>' + u.nickname + '</td><td>' + u.role + '</td><td>' + u.connect_code + '</td>';
-    html += '<td><button class="del" onclick="deleteUser(\'' + u.id + '\')">Delete</button></td></tr>';
-  });
-  html += '</table>';
-  list.innerHTML = html;
-}
-
-async function createUser() {
-  const msg = document.getElementById('createMsg');
-  msg.innerHTML = 'Creating...';
-  const body = {
-    key: key(),
-    username: document.getElementById('uUsername').value.trim().toLowerCase(),
-    email: document.getElementById('uEmail').value.trim(),
-    password: document.getElementById('uPassword').value,
-    nickname: document.getElementById('uNickname').value.trim(),
-    role: document.getElementById('uRole').value
-  };
-  if (!body.username || !body.email) { msg.innerHTML = '<span class="err">Username and email required</span>'; return; }
-  const res = await fetch('/api/admin/create-test-user', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (res.ok) {
-    msg.innerHTML = '<span class="ok">Created @' + data.username + ' — connect code: <strong>' + data.connectCode + '</strong></span>';
-    document.getElementById('uUsername').value = '';
-    document.getElementById('uEmail').value = '';
-    document.getElementById('uNickname').value = '';
-    loadUsers();
-  } else {
-    msg.innerHTML = '<span class="err">' + (data.error||'Error') + '</span>';
+  function loadUsers() {
+    fetch('/api/admin/test-users', { headers: { 'x-admin-key': adminKey() } })
+      .then(function(r) { return r.json().then(function(d) { return {ok:r.ok,d:d}; }); })
+      .then(function(result) {
+        var list = document.getElementById('userList');
+        if (!result.ok) { list.innerHTML = '<p class="err">' + (result.d.error||'Wrong key') + '</p>'; return; }
+        if (!result.d.length) { list.innerHTML = '<p style="color:#888">No test users yet</p>'; return; }
+        var html = '<table><tr><th>Username</th><th>Email</th><th>Nickname</th><th>Role</th><th>Code</th><th></th></tr>';
+        result.d.forEach(function(u) {
+          html += '<tr><td>@' + u.username + '</td><td>' + u.email + '</td><td>' + u.nickname + '</td><td>' + u.role + '</td><td>' + u.connect_code + '</td>';
+          html += '<td><button class="del" data-id="' + u.id + '">Delete</button></td></tr>';
+        });
+        html += '</table>';
+        list.innerHTML = html;
+        list.querySelectorAll('button.del').forEach(function(btn) {
+          btn.addEventListener('click', function() { deleteUser(btn.getAttribute('data-id')); });
+        });
+      });
   }
-}
 
-async function deleteUser(id) {
-  if (!confirm('Delete this test user and all their data?')) return;
-  const res = await fetch('/api/admin/delete-test-user', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-key': key() },
-    body: JSON.stringify({ id: id })
+  function createUser() {
+    var msg = document.getElementById('createMsg');
+    msg.innerHTML = 'Creating...';
+    var body = {
+      key: adminKey(),
+      username: document.getElementById('uUsername').value.trim().toLowerCase(),
+      email: document.getElementById('uEmail').value.trim(),
+      password: document.getElementById('uPassword').value,
+      nickname: document.getElementById('uNickname').value.trim(),
+      role: document.getElementById('uRole').value
+    };
+    if (!body.username || !body.email) { msg.innerHTML = '<span class="err">Username and email required</span>'; return; }
+    fetch('/api/admin/create-test-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r) { return r.json().then(function(d) { return {ok:r.ok,d:d}; }); })
+      .then(function(result) {
+        if (result.ok) {
+          msg.innerHTML = '<span class="ok">Created @' + result.d.username + ' — connect code: <strong>' + result.d.connectCode + '</strong></span>';
+          document.getElementById('uUsername').value = '';
+          document.getElementById('uEmail').value = '';
+          document.getElementById('uNickname').value = '';
+          loadUsers();
+        } else {
+          msg.innerHTML = '<span class="err">' + (result.d.error||'Error') + '</span>';
+        }
+      });
+  }
+
+  function deleteUser(id) {
+    if (!confirm('Delete this test user and all their data?')) return;
+    fetch('/api/admin/delete-test-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey() },
+      body: JSON.stringify({ id: id })
+    }).then(function(r) { return r.json().then(function(d) { return {ok:r.ok,d:d}; }); })
+      .then(function(result) {
+        if (result.ok) { loadUsers(); }
+        else { alert(result.d.error || 'Error deleting user'); }
+      });
+  }
+
+  document.getElementById('btnLoad').addEventListener('click', loadUsers);
+  document.getElementById('btnCreate').addEventListener('click', createUser);
+  document.getElementById('adminKey').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loadUsers();
   });
-  const data = await res.json();
-  if (res.ok) { loadUsers(); }
-  else { alert(data.error || 'Error deleting user'); }
-}
+})();
 </script>
-</body></html>`);
+</body></html>`;
+    res.end(html);
     return;
   }
 
