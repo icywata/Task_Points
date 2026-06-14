@@ -198,6 +198,21 @@
   .add-btn svg{width:16px;height:16px}
   .divider{border:none;border-top:1px solid var(--border-light);margin:1.5rem 0}
 
+  /* ── Permission toggles ── */
+  .permissions-section{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.25rem;margin-top:1.5rem}
+  .permissions-title{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem}
+  .perm-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-light)}
+  .perm-row:last-child{border-bottom:none;padding-bottom:0}
+  .perm-row:first-of-type{padding-top:0}
+  .perm-label{font-size:13px;font-weight:500;color:var(--text-primary)}
+  .perm-desc{font-size:11px;color:var(--text-muted);margin-top:2px}
+  .toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+  .toggle input{opacity:0;width:0;height:0;position:absolute}
+  .toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:24px;cursor:pointer;transition:background .2s}
+  .toggle-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s}
+  .toggle input:checked + .toggle-slider{background:var(--accent-mid)}
+  .toggle input:checked + .toggle-slider:before{transform:translateX(20px)}
+
   /* ── Shop ── */
   .balance-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:12px}
   .balance-left{display:flex;align-items:center;gap:12px}
@@ -747,17 +762,25 @@ function renderTracker() {
   renderMonthly();
   renderDaily();
   renderTotals();
-  // Show/hide add task form — only on own profile
-  document.getElementById('addTaskSection').style.display = isOwnProfile() ? 'block' : 'none';
-  // Show readonly notice if viewing partner
+  const isOwn = isOwnProfile();
+  const canAddTasks = isOwn || viewedProfileGrantsTaskPerms();
+  // Show/hide task type buttons based on permissions
+  document.getElementById('addTaskSection').style.display = 'block';
+  document.getElementById('btn-daily').style.display   = canAddTasks ? '' : 'none';
+  document.getElementById('btn-repeat').style.display  = canAddTasks ? '' : 'none';
+  document.getElementById('btn-monthly').style.display = canAddTasks ? '' : 'none';
+  if (!canAddTasks && addType !== 'assigned') setType('assigned');
+  // Readonly notice — only show for non-assigned section
   const existing = document.getElementById('readonlyNotice');
   if (existing) existing.remove();
-  if (!isOwnProfile()) {
+  if (!isOwn) {
     const notice = document.createElement('div');
     notice.id = 'readonlyNotice';
     notice.className = 'readonly-notice';
     const partnerName = currentUser.partnerNickname || 'Partner';
-    notice.textContent = `Viewing ${partnerName}'s tasks — read only`;
+    notice.textContent = canAddTasks
+      ? `Viewing ${partnerName}'s tasks — you can add tasks`
+      : `Viewing ${partnerName}'s tasks — you can assign tasks below`;
     document.getElementById('screen-tracker').insertBefore(notice, document.getElementById('assignedList').previousElementSibling.previousElementSibling);
   }
 }
@@ -1035,7 +1058,29 @@ function renderShop() {
     }
     content.appendChild(grid);
 
-    // My inventory — things I bought from partner's shop
+    // Add reward form — show if partner has granted shop permission
+    if (viewedProfileGrantsShopPerms()) {
+      const divider = document.createElement('hr');
+      divider.className = 'divider';
+      content.appendChild(divider);
+      const formDiv = document.createElement('div');
+      formDiv.innerHTML = `
+        <div class="section-head">Add a reward to ${esc(currentUser.partnerNickname||'Partner')}'s shop</div>
+        <div class="add-form">
+          <div><label for="rewardName">Reward name</label><input type="text" id="rewardName" placeholder="e.g. Cook dinner" maxlength="80"/></div>
+          <div><label for="rewardDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="rewardDesc" rows="2" placeholder="Any details…" maxlength="200"></textarea></div>
+          <div class="form-row">
+            <div><label for="rewardCost">Point cost</label><input type="number" id="rewardCost" placeholder="50" min="1" max="99999"/></div>
+            <div style="display:flex;flex-direction:column;justify-content:flex-end">
+              <button class="add-btn" onclick="addReward()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add
+              </button>
+            </div>
+          </div>
+        </div>`;
+      content.appendChild(formDiv);
+    }
     content.innerHTML += `<hr class="divider"/>`;
     const invSection = document.createElement('div');
     invSection.innerHTML = `<div class="section-head">Your purchases <span class="section-badge repeat" style="font-size:9px">Items you've bought</span></div>`;
@@ -1077,6 +1122,38 @@ function redeemReward(item) {
   scheduleSave(); renderShop(); renderTotals();
 }
 
+// ── Permissions helpers ────────────────────────────────────────
+function getMyPermissionsFor(partnerId) {
+  const p = ps(currentUser.userId);
+  if (!p.permissions) p.permissions = {};
+  if (!p.permissions[partnerId]) p.permissions[partnerId] = { tasks: false, shop: false };
+  return p.permissions[partnerId];
+}
+
+function viewedProfileGrantsTaskPerms() {
+  if (isOwnProfile()) return true;
+  const viewedProfile = ps(viewingProfile);
+  if (!viewedProfile.permissions) return false;
+  const perms = viewedProfile.permissions[currentUser.userId];
+  return !!(perms && perms.tasks);
+}
+
+function viewedProfileGrantsShopPerms() {
+  if (isOwnProfile()) return true;
+  const viewedProfile = ps(viewingProfile);
+  if (!viewedProfile.permissions) return false;
+  const perms = viewedProfile.permissions[currentUser.userId];
+  return !!(perms && perms.shop);
+}
+
+function savePermission(partnerId, key, value) {
+  const p = ps(currentUser.userId);
+  if (!p.permissions) p.permissions = {};
+  if (!p.permissions[partnerId]) p.permissions[partnerId] = { tasks: false, shop: false };
+  p.permissions[partnerId][key] = value;
+  scheduleSave();
+}
+
 // ── Profile screens ────────────────────────────────────────────
 function renderProfile() {
   const p = ps(currentUser.userId);
@@ -1112,15 +1189,15 @@ function renderProfile() {
 
 function renderPartnerProfileView() {
   if (!currentUser.partnerId) return;
-  const p = ps(currentUser.partnerId);
+  const p = ps(viewingProfile);
   const name = [p.firstName,p.lastName].filter(Boolean).join(' ') || p.nickname || 'Partner';
-  const earned = getTotalEarned(currentUser.partnerId);
-  const balance = getBalance(currentUser.partnerId);
+  const earned = getTotalEarned(viewingProfile);
+  const balance = getBalance(viewingProfile);
   const icon = p.icon || 'star';
+  const perms = getMyPermissionsFor(viewingProfile);
+  const partnerName = p.nickname || 'Partner';
   document.getElementById('profileInfoCard').innerHTML = `
-    <div class="profile-avatar">
-      ${iconSVG(icon, 30)}
-    </div>
+    <div class="profile-avatar">${iconSVG(icon, 30)}</div>
     <div>
       <div class="profile-display-name">${esc(name)}</div>
       ${p.nickname?`<div class="profile-display-role">"${esc(p.nickname)}" · ${esc(p.role||'')}</div>`:''}
@@ -1130,6 +1207,36 @@ function renderPartnerProfileView() {
   document.querySelector('#screen-profile .divider').style.display='none';
   document.querySelectorAll('#screen-profile .section-head').forEach(el=>el.style.display='none');
   document.querySelector('#screen-profile .add-form').style.display='none';
+  // Remove existing permissions section
+  const existing = document.getElementById('permissionsSection');
+  if (existing) existing.remove();
+  // Add permissions section
+  const section = document.createElement('div');
+  section.id = 'permissionsSection';
+  section.className = 'permissions-section';
+  section.innerHTML = `
+    <div class="permissions-title">Permissions for ${esc(partnerName)}</div>
+    <div class="perm-row">
+      <div>
+        <div class="perm-label">Allow ${esc(partnerName)} to add tasks</div>
+        <div class="perm-desc">Daily, repeating, monthly and assigned tasks on your profile</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="permTasks" ${perms.tasks?'checked':''} onchange="savePermission('${viewingProfile}','tasks',this.checked);renderTracker()"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="perm-row">
+      <div>
+        <div class="perm-label">Allow ${esc(partnerName)} to add shop rewards</div>
+        <div class="perm-desc">Add rewards to your points shop</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="permShop" ${perms.shop?'checked':''} onchange="savePermission('${viewingProfile}','shop',this.checked);renderShop()"/>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+  document.getElementById('screen-profile').appendChild(section);
 }
 
 async function saveProfile() {
@@ -1172,7 +1279,7 @@ function addTask() {
     const expiry=document.getElementById('taskExpiry').value;
     if(!expiry){document.getElementById('taskExpiry').focus();return;}
     const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null};
-    ps().assigned.push(task);
+    ps(viewingProfile).assigned.push(task);
     document.getElementById('taskExpiry').value='';
     notifyAssigned(task,expiry);
   } else {
@@ -1191,7 +1298,9 @@ function addReward() {
   const cost=parseInt(document.getElementById('rewardCost').value);
   if(!name){document.getElementById('rewardName').focus();return;}
   if(!cost||cost<1){document.getElementById('rewardCost').focus();return;}
-  ps(currentUser.userId).shop.push({id:uid(),name,desc,cost});
+  // Add to whichever profile's shop we're viewing
+  const targetId = isOwnProfile() ? currentUser.userId : viewingProfile;
+  ps(targetId).shop.push({id:uid(),name,desc,cost});
   document.getElementById('rewardName').value='';
   document.getElementById('rewardDesc').value='';
   document.getElementById('rewardCost').value='';
