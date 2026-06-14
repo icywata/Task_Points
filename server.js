@@ -999,6 +999,18 @@ const server = http.createServer(async (req, res) => {
             AND (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [userId, partnerId]);
 
+        // Debug
+        const debug = await db.query(`
+          SELECT tc.task_id, t.points, t.visible_to, tc.completed_on
+          FROM task_completions tc
+          JOIN tasks t ON t.id = tc.task_id
+          WHERE tc.completed_by = $1
+          LIMIT 10
+        `, [userId]);
+        console.log(`Balances debug for ${userId} with ${partnerId}:`);
+        console.log(`  earned total: ${earned.rows[0].total}`);
+        console.log(`  sample completions:`, JSON.stringify(debug.rows));
+
         // Points spent on items from this partner's shop
         const spent = await db.query(`
           SELECT COALESCE(SUM(i.cost), 0) as total
