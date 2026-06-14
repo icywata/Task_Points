@@ -531,6 +531,7 @@ async function bootApp() {
   // Set viewing profile to own profile by default
   viewingProfile = currentUser.userId;
   await loadFromServer();
+  updateProfileTabLabel();
 }
 
 // Check if already logged in on page load
@@ -660,15 +661,23 @@ function setSync(cls,text) {
   el.className='sync-indicator '+cls; el.textContent=text;
 }
 
+function updateProfileTabLabel() {
+  const tab = document.getElementById('tab-profile');
+  const isOwn = viewingProfile === currentUser.userId;
+  // Replace just the text node, keep the SVG intact
+  const textNode = Array.from(tab.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (textNode) textNode.textContent = isOwn ? '\n      Profile\n    ' : '\n      Permissions\n    ';
+}
+
 // ── Navigation ─────────────────────────────────────────────────
 function switchProfile(profileId) {
   viewingProfile = profileId;
   applyTheme(profileId);
   renderProfileSwitcher();
+  updateProfileTabLabel();
   renderAll();
   if (currentScreen==='shop') renderShop();
   if (currentScreen==='profile') {
-    // Only allow editing own profile
     if (isOwnProfile()) renderProfile();
     else renderPartnerProfileView();
   }
@@ -680,6 +689,7 @@ function switchScreen(s) {
     document.getElementById('screen-'+x).className='screen'+(x===s?' visible':'');
     document.getElementById('tab-'+x).className='screen-tab'+(x===s?' active':'');
   });
+  updateProfileTabLabel();
   if (s==='shop') renderShop();
   if (s==='profile') {
     if (isOwnProfile()) renderProfile();
