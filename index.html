@@ -1225,15 +1225,16 @@ async function loadFromServer() {
     if (!res.ok) {
       const err = await res.json().catch(()=>({}));
       console.error('Load failed:', res.status, err);
-      throw new Error(err.error || `HTTP ${res.status}`);
+      setSync('error','Could not load');
+      return;
     }
     state = await res.json();
     ps(currentUser.userId);
     if (currentUser.partnerId) ps(currentUser.partnerId);
     setSync('saved','Up to date');
-    renderAll();
+    try { renderAll(); } catch(e) { console.error('renderAll error:', e); }
   } catch(e) {
-    console.error('loadFromServer error:', e.message);
+    console.error('loadFromServer network error:', e.message);
     setSync('error','Could not load');
   }
 }
@@ -2168,28 +2169,29 @@ async function saveTaskEdit() {
   if (!editingTask) return;
   const { task, canEditContent, canEditVisibility } = editingTask;
   try {
-    if (canEditContent) {
+    if (canEditContent && document.getElementById('taskEditFields').style.display !== 'none') {
       const name = document.getElementById('editTaskName').value.trim();
       const desc = document.getElementById('editTaskDesc').value.trim();
       const pts  = parseInt(document.getElementById('editTaskPts').value);
       if (!name) { document.getElementById('editTaskName').focus(); return; }
       if (!pts || pts < 1) { document.getElementById('editTaskPts').focus(); return; }
-      // Update local state
       task.name = name; task.desc = desc; task.pts = pts;
-      await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      const res = await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
         body: JSON.stringify({ taskId: task.id, name, desc, pts, updateVisibility: false }) });
+      if (!res.ok) { const d=await res.json(); toast(d.error||'Content save failed','error'); return; }
     }
-    if (canEditVisibility) {
+    if (canEditVisibility && document.getElementById('taskVisibilityFields').style.display !== 'none') {
       const visibleTo = document.getElementById('editTaskVisibleTo').value || null;
       task.visibleTo = visibleTo;
-      await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      const res = await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
         body: JSON.stringify({ taskId: task.id, visibleTo, updateVisibility: true }) });
+      if (!res.ok) { const d=await res.json(); toast(d.error||'Visibility save failed','error'); return; }
     }
     toast('✓ Task updated', 'success');
     closeTaskEdit();
     scheduleSave();
-    renderTracker();
-  } catch(e) { toast('Save failed', 'error'); }
+    await loadFromServer();
+  } catch(e) { console.error('saveTaskEdit error:', e); toast('Save failed: ' + e.message, 'error'); }
 }
 let editingRewardId = null;
 
