@@ -116,6 +116,7 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS connect_code TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS used_invite_code TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_invite_token TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_test_user BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS visible_to TEXT`,
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS visible_to TEXT`,
   ];
@@ -788,6 +789,119 @@ const server = http.createServer(async (req, res) => {
           </div>
           <p style="color:#7a5068;font-size:12px;text-align:center">This invite is just for you. Once you sign up you'll be connected automatically.</p>
         </div>`);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Admin test users page ──────────────────────────────────
+  if (req.method === 'GET' && url === '/admin/users') {
+    res.writeHead(200, {'Content-Type':'text/html'});
+    res.end(`<!DOCTYPE html><html><head><title>KinkPoints — Test Users</title>
+    <style>body{font-family:sans-serif;max-width:700px;margin:2rem auto;padding:1rem;background:#1a1118;color:#f0dce8}
+    h1,h2{color:#d4537e}input,select,button{padding:8px 12px;margin:4px;border-radius:8px;border:1px solid #333;background:#2a1c27;color:#f0dce8;font-size:14px}
+    button{background:#d4537e;color:#fff;border:none;cursor:pointer}button.del{background:#5a2020}
+    table{width:100%;border-collapse:collapse;margin-top:1rem}td,th{padding:8px;border:1px solid #333;font-size:13px}
+    th{background:#2a1c27;color:#d4537e}.ok{color:#6abf6a}.err{color:#e06060}hr{border-color:#333;margin:1.5rem 0}</style>
+    </head><body>
+    <h1>Test Users</h1>
+    <div><input id="key" placeholder="Admin key" type="password" style="margin-bottom:12px"/><button onclick="load()">Load</button></div>
+    <hr/>
+    <h2>Create test user</h2>
+    <div>
+      <input id="uUsername" placeholder="username" maxlength="30"/>
+      <input id="uEmail" placeholder="email@test.com"/>
+      <input id="uPassword" placeholder="password" type="password"/>
+      <input id="uNickname" placeholder="nickname"/>
+      <select id="uRole">
+        <option>Dominant</option><option>Submissive</option><option>Switch</option>
+        <option>Daddy</option><option>Babygirl</option><option>Master</option><option>Pet</option>
+      </select>
+      <button onclick="createUser()">Create</button>
+    </div>
+    <div id="createMsg"></div>
+    <hr/>
+    <h2>Test users</h2>
+    <div id="userList"></div>
+    <script>
+    async function load() {
+      const r = await fetch('/api/admin/test-users', {headers:{'x-admin-key':document.getElementById('key').value}});
+      if (!r.ok) { document.getElementById('userList').innerHTML='<p class="err">Wrong key</p>'; return; }
+      const users = await r.json();
+      if (!users.length) { document.getElementById('userList').innerHTML='<p style="color:#888">No test users yet</p>'; return; }
+      document.getElementById('userList').innerHTML = '<table><tr><th>Username</th><th>Email</th><th>Nickname</th><th>Role</th><th>Connect Code</th><th></th></tr>' +
+        users.map(u => '<tr><td>@'+u.username+'</td><td>'+u.email+'</td><td>'+u.nickname+'</td><td>'+u.role+'</td><td>'+u.connect_code+'</td><td><button class="del" onclick="deleteUser(\''+u.id+'\')">Delete</button></td></tr>').join('') + '</table>';
+    }
+    async function createUser() {
+      const msg = document.getElementById('createMsg');
+      const body = { key: document.getElementById('key').value,
+        username: document.getElementById('uUsername').value.trim().toLowerCase(),
+        email: document.getElementById('uEmail').value.trim(),
+        password: document.getElementById('uPassword').value,
+        nickname: document.getElementById('uNickname').value.trim(),
+        role: document.getElementById('uRole').value };
+      const r = await fetch('/api/admin/create-test-user', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const d = await r.json();
+      msg.innerHTML = r.ok ? '<span class="ok">✓ Created @'+d.username+' (connect code: '+d.connectCode+')</span>' : '<span class="err">'+d.error+'</span>';
+      if (r.ok) { load(); document.getElementById('uUsername').value=''; document.getElementById('uEmail').value=''; document.getElementById('uNickname').value=''; }
+    }
+    async function deleteUser(id) {
+      if (!confirm('Delete this test user and all their data?')) return;
+      const r = await fetch('/api/admin/delete-test-user', {method:'POST',headers:{'Content-Type':'application/json','x-admin-key':document.getElementById('key').value},body:JSON.stringify({id})});
+      const d = await r.json();
+      if (r.ok) load(); else alert(d.error);
+    }
+    </script></body></html>`);
+    return;
+  }
+
+  // ── Admin: list test users ─────────────────────────────────
+  if (req.method === 'GET' && url === '/api/admin/test-users') {
+    try {
+      const key = req.headers['x-admin-key'];
+      if (key !== 'Daemoni') { json(res, { error: 'Unauthorized' }, 401); return; }
+      const r = await db.query(`SELECT id, username, email, nickname, role, connect_code FROM users WHERE is_test_user=TRUE ORDER BY created_at DESC`);
+      json(res, r.rows);
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Admin: create test user ────────────────────────────────
+  if (req.method === 'POST' && url === '/api/admin/create-test-user') {
+    try {
+      const { key, username, email, password, nickname, role } = await parseBody(req);
+      if (key !== 'Daemoni') { json(res, { error: 'Unauthorized' }, 401); return; }
+      if (!username || !email || !password) { json(res, { error: 'Username, email and password required' }, 400); return; }
+      const existing = await db.query(`SELECT id FROM users WHERE LOWER(username)=LOWER($1) OR LOWER(email)=LOWER($2)`, [username, email]);
+      if (existing.rows.length) { json(res, { error: 'Username or email already taken' }, 409); return; }
+      const connectCode = await generateUniqueConnectCode();
+      const userId = 'test_' + uid();
+      await db.query(`INSERT INTO users (id,email,password_hash,username,nickname,role,connect_code,email_verified,is_test_user)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,TRUE)`,
+        [userId, email.toLowerCase(), hashPassword(password), username, nickname||username, role||'Submissive', connectCode]);
+      json(res, { ok: true, username, connectCode });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Admin: delete test user ────────────────────────────────
+  if (req.method === 'POST' && url === '/api/admin/delete-test-user') {
+    try {
+      const key = req.headers['x-admin-key'];
+      if (key !== 'Daemoni') { json(res, { error: 'Unauthorized' }, 401); return; }
+      const { id } = await parseBody(req);
+      if (!id.startsWith('test_')) { json(res, { error: 'Can only delete test users' }, 403); return; }
+      // Delete all related data
+      await db.query(`DELETE FROM sessions WHERE user_id=$1`, [id]);
+      await db.query(`DELETE FROM task_completions WHERE completed_by=$1`, [id]);
+      await db.query(`DELETE FROM monthly_completions WHERE completed_by=$1`, [id]);
+      await db.query(`DELETE FROM tasks WHERE owner_id=$1 OR created_by=$1`, [id]);
+      await db.query(`DELETE FROM partnerships WHERE user_a_id=$1 OR user_b_id=$1`, [id]);
+      await db.query(`DELETE FROM partner_requests WHERE from_user_id=$1 OR to_user_id=$1`, [id]);
+      await db.query(`DELETE FROM partner_invites WHERE from_user_id=$1`, [id]);
+      await db.query(`DELETE FROM inventory WHERE owner_id=$1 OR redeemed_by=$1`, [id]);
+      await db.query(`DELETE FROM shop_items WHERE owner_id=$1`, [id]);
+      await db.query(`DELETE FROM users WHERE id=$1 AND is_test_user=TRUE`, [id]);
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
