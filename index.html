@@ -1709,9 +1709,20 @@ function renderAssigned() {
       requireProof:t.requireProof, taskRef:t, taskType:'assigned',
       proof:t.proof, canUpload, isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
       onCheck:()=>{
-        if (isDone){const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=null;}
-        else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=selectedDate;}
-        scheduleSave();renderTracker();
+        if (isDone) {
+          const idx=p.assigned.findIndex(x=>x.id===t.id);
+          if(idx>=0) p.assigned[idx].completedOn=null;
+          scheduleSave(); renderTracker();
+        } else {
+          // If proof required, don't allow manual check-off — must go through proof flow
+          if (t.requireProof && (!t.proof || t.proof.state !== 'approved')) {
+            toast('Photo proof must be uploaded and approved first', 'info');
+            return;
+          }
+          const idx=p.assigned.findIndex(x=>x.id===t.id);
+          if(idx>=0) p.assigned[idx].completedOn=selectedDate;
+          scheduleSave(); renderTracker();
+        }
       },
       onDelete:()=>{ deleteTask(t.id); }
     });

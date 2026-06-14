@@ -1379,7 +1379,9 @@ async function deleteUser(id) {
           p.days[key].tasks.push({
             id: t.id, name: t.name, desc: t.description, pts: t.points,
             createdBy: t.created_by, visibleTo: t.visible_to,
-            done: !!t.completed_on, requireProof: t.require_proof,
+            // Only mark done if: no proof required, OR proof is approved
+            done: !!t.completed_on && (!t.require_proof || t.proof_status === 'approved'),
+            requireProof: t.require_proof,
             proof: t.proof_key ? { key: t.proof_key, state: t.proof_status||'pending', savedBy: t.proof_saved ? {[uid]:true} : {} } : null
           });
         });
@@ -1428,7 +1430,9 @@ async function deleteUser(id) {
               createdBy:t.created_by, visibleTo:t.visible_to,
               assignedOn:t.assigned_on?.toISOString().slice(0,10),
               expiresOn:t.expires_on?.toISOString().slice(0,10),
-              completedOn:t.completed_on?.toISOString().slice(0,10)||null,
+              // Only mark completed if no proof required, or proof is approved
+              completedOn: t.completed_on && (!t.require_proof || t.proof_status === 'approved')
+                ? t.completed_on.toISOString().slice(0,10) : null,
               requireProof:t.require_proof,
               proof:t.proof_key ? { key:t.proof_key, state:t.proof_status||'pending', viewerIds:[] } : null
             });
@@ -1589,10 +1593,19 @@ async function deleteUser(id) {
               [t.id, userId]);
           }
           if (t.proof?.key) {
-            await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)
-              VALUES ($1,$2,$3,$4,$5,$6)
-              ON CONFLICT (task_id,completed_by,completed_on) DO UPDATE SET proof_key=$5,proof_status=$6`,
-              [uid(), t.id, userId, dateKey, t.proof.key, t.proof.state||'pending']);
+            // Only mark complete if proof is approved — pending proof just stores the key
+            if (t.proof.state === 'approved') {
+              await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)
+                VALUES ($1,$2,$3,$4,$5,'approved')
+                ON CONFLICT (task_id,completed_by,completed_on) DO UPDATE SET proof_key=$5,proof_status='approved'`,
+                [uid(), t.id, userId, dateKey, t.proof.key]);
+            } else {
+              // Store proof key on existing completion or create pending record (won't count as done)
+              await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)
+                VALUES ($1,$2,$3,$4,$5,$6)
+                ON CONFLICT (task_id,completed_by,completed_on) DO UPDATE SET proof_key=$5,proof_status=$6`,
+                [uid(), t.id, userId, dateKey, t.proof.key, t.proof.state||'pending']);
+            }
           }
         }
       }
