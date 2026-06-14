@@ -438,6 +438,27 @@
 <body class="theme-default">
 <div id="toastContainer"></div>
 
+<!-- Task edit modal -->
+<div class="edit-modal hidden" id="taskEditModal">
+  <div class="edit-card">
+    <h3 id="taskEditTitle">Edit task</h3>
+    <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
+      <div id="taskEditFields">
+        <div><label for="editTaskName">Task name</label><input type="text" id="editTaskName" maxlength="80"/></div>
+        <div><label for="editTaskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="editTaskDesc" rows="2" maxlength="200"></textarea></div>
+        <div><label for="editTaskPts">Point value</label><input type="number" id="editTaskPts" min="1" max="9999"/></div>
+      </div>
+      <div id="taskVisibilityFields">
+        <div><label for="editTaskVisibleTo">Visible to</label><select id="editTaskVisibleTo"></select></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="add-btn" style="flex:1" onclick="saveTaskEdit()">Save changes</button>
+        <button class="add-btn" style="flex:0;padding:0 16px;background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border)" onclick="closeTaskEdit()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Shop item edit modal -->
 <div class="edit-modal hidden" id="shopEditModal">
   <div class="edit-card">
@@ -1354,8 +1375,14 @@ function makeTaskRow(opts) {
     thumbnailHtml = `<img class="proof-thumbnail" src="/api/proof/thumb?key=${encodeURIComponent(proof.key)}" alt="proof" onerror="this.style.display='none'"/>`;
   }
 
-  // Can complete task?
+  // Who can do what
   const canComplete = !opts.checkDisabled && (!opts.requireProof || opts.done || proofState === 'approved');
+  const canEditContent = opts.createdBy === currentUser.userId || (isOwnProfile() && !opts.createdBy);
+  const canEditVisibility = isOwnProfile();
+  const showEditBtn = !opts.done && (canEditContent || canEditVisibility);
+
+  // Edit button SVG
+  const editSVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
 
   // Visibility label — only show on own profile so you know who sees each task
   let visibilityLabel = '';
@@ -1383,6 +1410,7 @@ function makeTaskRow(opts) {
       ${proofBadge}
       ${proofBtn}
       ${opts.extraButtons||''}
+      ${showEditBtn?`<button class="task-delete task-edit-action" style="color:var(--text-muted)">${editSVG}</button>`:''}
       ${opts.showDelete!==false?`<button class="task-delete">${trashSVG()}</button>`:''}
     </div>`;
 
@@ -1430,7 +1458,9 @@ function makeTaskRow(opts) {
     );
   }
 
-  if (opts.showDelete!==false) row.querySelector('.task-delete').onclick = opts.onDelete;
+  if (opts.showDelete!==false) row.querySelector('.task-delete:last-child').onclick = opts.onDelete;
+  const editBtn = row.querySelector('.task-edit-action');
+  if (editBtn) editBtn.onclick = () => openTaskEdit(opts.taskRef || {id:opts.taskId, name:opts.name, desc:opts.desc, pts:opts.pts, visibleTo:opts.visibleTo}, canEditContent, canEditVisibility);
   return row;
 }
 
@@ -1516,7 +1546,7 @@ function renderAssigned() {
       done:isDone, name:t.name, desc:t.desc, pts:t.pts, extraClass:rowExtra,
       extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'assigned',
-      proof:t.proof, canUpload, isReviewer, visibleTo:t.visibleTo,
+      proof:t.proof, canUpload, isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
       onCheck:()=>{
         if (isDone){const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=null;}
         else{const idx=p.assigned.findIndex(x=>x.id===t.id);if(idx>=0)p.assigned[idx].completedOn=selectedDate;}
@@ -1572,7 +1602,7 @@ function renderDaily() {
       done:t.done, name:t.name, desc:t.desc, pts:t.pts,
       checkDisabled:!canCheck, showDelete:isOwnProfile(),
       requireProof:t.requireProof, taskRef:t, taskType:'daily',
-      proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo,
+      proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
       onCheck:()=>{ getDayTasks(selectedDate)[i].done^=true; scheduleSave();renderTracker(); },
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -2094,7 +2124,66 @@ function toast(message, type='info', duration=2800) {
   container.appendChild(el);
   setTimeout(() => el.remove(), duration + 300);
 }
-// ── Shop item editing ──────────────────────────────────────────
+// ── Task editing ───────────────────────────────────────────────
+let editingTask = null;
+
+function openTaskEdit(task, canEditContent, canEditVisibility) {
+  editingTask = { task, canEditContent, canEditVisibility };
+  document.getElementById('taskEditTitle').textContent = canEditContent ? 'Edit task' : 'Task visibility';
+  // Content fields — only shown if creator
+  document.getElementById('taskEditFields').style.display = canEditContent ? 'flex' : 'none';
+  document.getElementById('taskEditFields').style.flexDirection = 'column';
+  document.getElementById('taskEditFields').style.gap = '10px';
+  if (canEditContent) {
+    document.getElementById('editTaskName').value = task.name || '';
+    document.getElementById('editTaskDesc').value = task.desc || '';
+    document.getElementById('editTaskPts').value = task.pts || '';
+  }
+  // Visibility — only shown if profile owner
+  document.getElementById('taskVisibilityFields').style.display = canEditVisibility ? 'block' : 'none';
+  if (canEditVisibility) {
+    const sel = document.getElementById('editTaskVisibleTo');
+    sel.innerHTML = `<option value="">Everyone (all partners)</option>`;
+    if (currentUser.partnerId) {
+      sel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+    }
+    sel.value = task.visibleTo || '';
+  }
+  document.getElementById('taskEditModal').classList.remove('hidden');
+}
+
+function closeTaskEdit() {
+  document.getElementById('taskEditModal').classList.add('hidden');
+  editingTask = null;
+}
+
+async function saveTaskEdit() {
+  if (!editingTask) return;
+  const { task, canEditContent, canEditVisibility } = editingTask;
+  try {
+    if (canEditContent) {
+      const name = document.getElementById('editTaskName').value.trim();
+      const desc = document.getElementById('editTaskDesc').value.trim();
+      const pts  = parseInt(document.getElementById('editTaskPts').value);
+      if (!name) { document.getElementById('editTaskName').focus(); return; }
+      if (!pts || pts < 1) { document.getElementById('editTaskPts').focus(); return; }
+      // Update local state
+      task.name = name; task.desc = desc; task.pts = pts;
+      await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({ taskId: task.id, name, desc, pts, updateVisibility: false }) });
+    }
+    if (canEditVisibility) {
+      const visibleTo = document.getElementById('editTaskVisibleTo').value || null;
+      task.visibleTo = visibleTo;
+      await fetch('/api/task/update', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({ taskId: task.id, visibleTo, updateVisibility: true }) });
+    }
+    toast('✓ Task updated', 'success');
+    closeTaskEdit();
+    scheduleSave();
+    renderTracker();
+  } catch(e) { toast('Save failed', 'error'); }
+}
 let editingRewardId = null;
 
 function openRewardEdit(item) {

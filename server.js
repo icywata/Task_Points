@@ -921,10 +921,9 @@ const server = http.createServer(async (req, res) => {
 
       for (const uid of partnerIds) {
         const p = {};
-        // When viewing someone else's tasks, only show tasks visible to us
-        const visibilityClause = uid === userId
-          ? `` // owner sees all their own tasks
-          : `AND (t.visible_to IS NULL OR t.visible_to='${userId}')`; // partner sees only tasks scoped to them or everyone
+        const isOwner = uid === userId;
+        // Params: [uid] for owner, [uid, userId] for partner view
+        const visParams = isOwner ? [uid] : [uid, userId];
 
         // Build days structure from task_completions
         p.days = {};
@@ -932,22 +931,24 @@ const server = http.createServer(async (req, res) => {
           SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status, tc.proof_saved
           FROM tasks t
           LEFT JOIN task_completions tc ON tc.task_id = t.id AND tc.completed_by = t.owner_id
-          WHERE t.owner_id=$1 AND t.type='daily' AND t.active=TRUE ${visibilityClause}
-        `, [uid]);
+          WHERE t.owner_id=$1 AND t.type='daily' AND t.active=TRUE
+          ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}
+        `, visParams);
         dailyTasks.rows.forEach(t => {
           const dateKey = t.completed_on ? t.completed_on.toISOString().slice(0,10) : null;
           const key = dateKey || t.created_at.toISOString().slice(0,10);
           if (!p.days[key]) p.days[key] = { tasks:[] };
           p.days[key].tasks.push({
             id: t.id, name: t.name, desc: t.description, pts: t.points,
-            done: !!t.completed_on, requireProof: t.require_proof, visibleTo: t.visible_to,
+            createdBy: t.created_by, visibleTo: t.visible_to,
+            done: !!t.completed_on, requireProof: t.require_proof,
             proof: t.proof_key ? { key: t.proof_key, state: t.proof_status||'pending', savedBy: t.proof_saved ? {[uid]:true} : {} } : null
           });
         });
 
         // Monthly tasks
         p.monthly = {}; p.monthlyDone = {};
-        const monthlyTasks = await db.query(`SELECT t.*, mc.completed_on, mc.month_key as done_month FROM tasks t LEFT JOIN monthly_completions mc ON mc.task_id=t.id AND mc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='monthly' AND t.active=TRUE ${visibilityClause}`, [uid]);
+        const monthlyTasks = await db.query(`SELECT t.*, mc.completed_on, mc.month_key as done_month FROM tasks t LEFT JOIN monthly_completions mc ON mc.task_id=t.id AND mc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='monthly' AND t.active=TRUE ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}`, visParams);
         monthlyTasks.rows.forEach(t => {
           const mk = t.month_key;
           if (!p.monthly[mk]) p.monthly[mk] = [];
@@ -962,7 +963,7 @@ const server = http.createServer(async (req, res) => {
 
         // Repeating tasks
         p.repeating = []; p.repeatingDone = {}; p.repeatingDeleted = {};
-        const repeatingTasks = await db.query(`SELECT t.*, tc.completed_on FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='repeat' AND t.active=TRUE ${visibilityClause}`, [uid]);
+        const repeatingTasks = await db.query(`SELECT t.*, tc.completed_on FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='repeat' AND t.active=TRUE ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}`, visParams);
         const seen = new Set();
         repeatingTasks.rows.forEach(t => {
           if (!seen.has(t.id)) {
@@ -979,7 +980,7 @@ const server = http.createServer(async (req, res) => {
 
         // Assigned tasks
         p.assigned = [];
-        const assignedTasks = await db.query(`SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='assigned' AND t.active=TRUE ${visibilityClause}`, [uid]);
+        const assignedTasks = await db.query(`SELECT t.*, tc.completed_on, tc.proof_key, tc.proof_status FROM tasks t LEFT JOIN task_completions tc ON tc.task_id=t.id AND tc.completed_by=$1 WHERE t.owner_id=$1 AND t.type='assigned' AND t.active=TRUE ${isOwner ? '' : 'AND (t.visible_to IS NULL OR t.visible_to=$2)'}`, visParams);
         const seenA = new Set();
         assignedTasks.rows.forEach(t => {
           if (!seenA.has(t.id)) {
@@ -1313,6 +1314,26 @@ const server = http.createServer(async (req, res) => {
       const { id, name, desc, cost, visibleTo } = await parseBody(req);
       await db.query(`UPDATE shop_items SET name=$1, description=$2, cost=$3, visible_to=$4 WHERE id=$5 AND owner_id=$6`,
         [name, desc||null, cost, visibleTo||null, id, userId]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Update task ────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/task/update') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { taskId, name, desc, pts, visibleTo, updateVisibility } = await parseBody(req);
+      if (updateVisibility) {
+        // Only the profile owner can change visibility
+        await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
+          [visibleTo||null, taskId, userId]);
+      } else {
+        // Only the task creator can edit content
+        await db.query(`UPDATE tasks SET name=$1, description=$2, points=$3 WHERE id=$4 AND created_by=$5`,
+          [name, desc||null, pts, taskId, userId]);
+      }
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
