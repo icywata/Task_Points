@@ -2155,14 +2155,6 @@ function redeemReward(item) {
   loadBalances().then(() => renderTotals());
   toast(isSolo ? `🧍 Solo reward unlocked: "${item.name}"` : `🎁 "${item.name}" redeemed for ${item.cost} pts`, 'success');
 }
-  ps(currentUser.userId).inventory.push({
-    id: uid(), rewardId: item.id, name: item.name, desc: item.desc,
-    cost: item.cost, fromUserId: currentUser.partnerId,
-    redeemedAt: Date.now(), fulfilled: false
-  });
-  scheduleSave(); renderShop(); renderTotals();
-  toast(`🎁 "${item.name}" redeemed for ${item.cost} pts`, 'success');
-}
 
 // ── Permissions helpers ────────────────────────────────────────
 function getMyPermissionsFor(partnerId) {
