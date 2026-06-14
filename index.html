@@ -115,11 +115,27 @@
   #appScreen.visible{display:block}
   .app{max-width:640px;margin:0 auto}
 
-  /* ── Top bar ── */
   .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
   .app-brand{font-size:13px;font-weight:700;color:var(--accent-mid);letter-spacing:.5px;text-transform:uppercase}
+  .top-bar-right{display:flex;align-items:center;gap:8px}
+  .album-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-muted);font-size:12px;font-weight:600;padding:5px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s}
+  .album-btn:hover{border-color:var(--accent-mid);color:var(--accent-light)}
+  .album-btn svg{width:14px;height:14px}
   .logout-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-muted);font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer;transition:all .15s}
   .logout-btn:hover{border-color:var(--accent-mid);color:var(--accent-light)}
+
+  /* ── Album modal ── */
+  .album-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;flex-direction:column;padding:1.5rem}
+  .album-modal.hidden{display:none}
+  .album-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-shrink:0}
+  .album-title{font-size:18px;font-weight:700;color:#fff}
+  .album-close{background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1}
+  .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;overflow-y:auto;flex:1}
+  .album-item{position:relative;aspect-ratio:1;border-radius:var(--radius-lg);overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .15s}
+  .album-item:hover{border-color:var(--accent-mid)}
+  .album-item img{width:100%;height:100%;object-fit:cover}
+  .album-item-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);font-size:10px;color:#fff;padding:4px 6px;font-weight:600}
+  .album-empty{text-align:center;color:#666;font-size:14px;padding:3rem;grid-column:1/-1}
 
   /* ── Profile switcher ── */
   .profile-switcher{display:flex;gap:6px;margin-bottom:1.25rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:5px}
@@ -367,6 +383,15 @@
 </head>
 <body class="theme-default">
 
+<!-- Album modal -->
+<div class="album-modal hidden" id="albumModal">
+  <div class="album-header">
+    <div class="album-title">📸 Photo Album</div>
+    <button class="album-close" onclick="closeAlbum()">✕</button>
+  </div>
+  <div class="album-grid" id="albumGrid"></div>
+</div>
+
 <!-- Photo proof review modal -->
 <div class="proof-view-modal hidden" id="proofModal">
   <button class="proof-modal-close" onclick="closeProofModal()">✕</button>
@@ -413,7 +438,13 @@
   <!-- Top bar -->
   <div class="top-bar">
     <span class="app-brand">KinkPoints</span>
-    <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    <div class="top-bar-right">
+      <button class="album-btn" onclick="openAlbum()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Album
+      </button>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
   </div>
 
   <!-- Profile switcher -->
@@ -516,9 +547,13 @@
         <div class="proof-toggle-row">
           <span class="proof-toggle-label">Require photo proof to complete</span>
           <label class="toggle">
-            <input type="checkbox" id="requireProof"/>
+            <input type="checkbox" id="requireProof" onchange="toggleProofReviewer()"/>
             <span class="toggle-slider"></span>
           </label>
+        </div>
+        <div id="proofReviewerRow" style="display:none">
+          <label for="proofReviewer">Who reviews the proof?</label>
+          <select id="proofReviewer"></select>
         </div>
         <div class="form-row">
           <div><label for="taskPts">Point value</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
@@ -1525,6 +1560,7 @@ function addTask() {
   document.getElementById('taskDesc').value='';
   document.getElementById('taskPts').value='';
   document.getElementById('requireProof').checked=false;
+  document.getElementById('proofReviewerRow').style.display='none';
   scheduleSave();renderTracker();
   document.getElementById('taskName').focus();
 }
@@ -1715,8 +1751,7 @@ async function openProofForUpload(file, taskRef, taskType, onUploaded) {
   const viewerIds = getProofViewerIds(viewingProfile);
   try {
     const key = await uploadProof(file, taskRef.id, taskType, viewerIds);
-    // Store proof state on task
-    taskRef.proof = { key, state: 'pending', uploadedAt: Date.now() };
+    taskRef.proof = { key, state: 'pending', uploadedAt: Date.now(), viewerIds };
     onUploaded(key);
   } catch(err) {
     console.error('Upload failed:', err);
@@ -1733,17 +1768,27 @@ async function openProofModal(key, isReviewer, taskRef, onApprove, onReject) {
   const data = await res.json();
   if (!res.ok) { alert('Could not load photo: ' + data.error); return; }
 
-  proofModalContext = { key, taskRef, isReviewer, onApprove, onReject };
+  // Determine if current user is a reviewer for this proof
+  // Reviewer = their ID is in proof.viewerIds, OR task has no specific viewer (self-review)
+  const proof = taskRef?.proof;
+  const viewerIds = proof?.viewerIds || [];
+  const effectiveIsReviewer = isReviewer ||
+    viewerIds.includes(currentUser.userId) ||
+    (viewerIds.length === 0) ||
+    (viewerIds.length === 1 && viewerIds[0] === currentUser.userId);
+
+  proofModalContext = { key, taskRef, isReviewer: effectiveIsReviewer, onApprove, onReject };
   document.getElementById('proofModalImg').src = data.url;
-  document.getElementById('proofModalTitle').textContent = isReviewer ? 'Review photo proof' : 'Your submitted proof';
+  document.getElementById('proofModalTitle').textContent = effectiveIsReviewer
+    ? 'Review photo proof'
+    : 'Your submitted proof — awaiting review';
 
   const actions = document.getElementById('proofModalActions');
-  if (isReviewer) {
+  if (effectiveIsReviewer) {
     actions.innerHTML = `
       <button class="proof-approve-btn" onclick="approveProof()">✓ Approve & complete</button>
       <button class="proof-reject-btn" onclick="rejectProof()">✗ Reject</button>`;
   } else {
-    // Uploader viewing their own pending/rejected proof
     actions.innerHTML = `<button class="proof-approve-btn" onclick="closeProofModal()" style="background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border)">Close</button>`;
   }
   document.getElementById('proofModal').classList.remove('hidden');
@@ -1759,9 +1804,16 @@ async function approveProof() {
   if (!proofModalContext) return;
   const { key, taskRef, onApprove } = proofModalContext;
   const save = document.getElementById('proofSaveCheck').checked;
-  // Update proof state
-  taskRef.proof = { ...taskRef.proof, state: 'approved', reviewedAt: Date.now() };
-  // Decide photo fate
+  // Update proof state on the task
+  if (taskRef && taskRef.proof) {
+    taskRef.proof.state = 'approved';
+    taskRef.proof.reviewedAt = Date.now();
+    if (save) {
+      if (!taskRef.proof.savedBy) taskRef.proof.savedBy = {};
+      taskRef.proof.savedBy[currentUser.userId] = true;
+    }
+  }
+  // Handle R2 photo fate
   await fetch('/api/proof/decide', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1796,10 +1848,93 @@ async function rejectProof() {
   renderTracker();
 }
 
+function toggleProofReviewer() {
+  const checked = document.getElementById('requireProof').checked;
+  const row = document.getElementById('proofReviewerRow');
+  row.style.display = checked ? 'block' : 'none';
+  if (checked) {
+    const sel = document.getElementById('proofReviewer');
+    sel.innerHTML = '';
+    // Default: partner if exists, else self
+    if (currentUser.partnerId) {
+      const partnerName = currentUser.partnerNickname || 'Partner';
+      sel.innerHTML += `<option value="${currentUser.partnerId}">${partnerName} (default)</option>`;
+    }
+    sel.innerHTML += `<option value="${currentUser.userId}">Myself</option>`;
+  }
+}
+
 function getProofViewerIds(taskOwnerProfile) {
+  // If assigning to partner's profile, we are the reviewer
   if (taskOwnerProfile !== currentUser.userId) return [currentUser.userId];
-  if (currentUser.partnerId) return [currentUser.partnerId];
-  return [currentUser.userId]; // self-review
+  // Self-assigned — use dropdown selection if visible
+  const reviewerRow = document.getElementById('proofReviewerRow');
+  if (reviewerRow && reviewerRow.style.display !== 'none') {
+    const sel = document.getElementById('proofReviewer');
+    return sel ? [sel.value] : [currentUser.userId];
+  }
+  // Default: partner or self
+  return currentUser.partnerId ? [currentUser.partnerId] : [currentUser.userId];
+}
+
+// ── Album ──────────────────────────────────────────────────────
+function openAlbum() {
+  const grid = document.getElementById('albumGrid');
+  grid.innerHTML = '';
+  // Collect all saved proof keys from all tasks across all profiles
+  const savedProofs = [];
+  const profiles = [currentUser.userId];
+  if (currentUser.partnerId) profiles.push(currentUser.partnerId);
+  profiles.forEach(pid => {
+    const p = state[pid] || {};
+    // Check days tasks
+    Object.values(p.days || {}).forEach(day => {
+      (day.tasks || []).forEach(t => {
+        if (t.proof && t.proof.state === 'approved' && t.proof.key &&
+            t.proof.savedBy && t.proof.savedBy[currentUser.userId]) {
+          savedProofs.push({ key: t.proof.key, name: t.name, profile: pid });
+        }
+      });
+    });
+    // Check assigned tasks
+    (p.assigned || []).forEach(t => {
+      if (t.proof && t.proof.state === 'approved' && t.proof.key &&
+          t.proof.savedBy && t.proof.savedBy[currentUser.userId]) {
+        savedProofs.push({ key: t.proof.key, name: t.name, profile: pid });
+      }
+    });
+  });
+  // Also check _proofs for saved flag
+  const proofs = state._proofs || {};
+  const savedKeys = Object.values(proofs).filter(p =>
+    p.saved && p.saved[currentUser.userId]
+  );
+  savedKeys.forEach(p => {
+    if (!savedProofs.find(x => x.key === p.key)) {
+      savedProofs.push({ key: p.key, name: 'Saved photo', profile: p.uploadedBy });
+    }
+  });
+  if (!savedProofs.length) {
+    grid.innerHTML = '<div class="album-empty">No saved photos yet.<br/>Save photos when reviewing proof to build your album.</div>';
+  } else {
+    savedProofs.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'album-item';
+      const profileName = item.profile === currentUser.userId
+        ? (currentUser.nickname || 'You')
+        : (currentUser.partnerNickname || 'Partner');
+      el.innerHTML = `
+        <img src="/api/proof/thumb?key=${encodeURIComponent(item.key)}" alt="${esc(item.name)}" onerror="this.parentElement.style.display='none'"/>
+        <div class="album-item-label">${esc(item.name)}</div>`;
+      el.onclick = () => openProofModal(item.key, false, {}, ()=>{}, ()=>{});
+      grid.appendChild(el);
+    });
+  }
+  document.getElementById('albumModal').classList.remove('hidden');
+}
+
+function closeAlbum() {
+  document.getElementById('albumModal').classList.add('hidden');
 }
 
 function triggerFileUpload(taskRef, taskType, onUploaded) {
