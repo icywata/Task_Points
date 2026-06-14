@@ -650,20 +650,11 @@ const server = http.createServer(async (req, res) => {
     if (!s3Client) { json(res, { error: 'Photo storage not configured' }, 503); return; }
     try {
       const { key } = await parseBody(req);
-      const state = await readData();
-      const proof = state._proofs && state._proofs[key];
-      if (!proof) { json(res, { error: 'Proof not found' }, 404); return; }
-      // Check viewer is authorized
-      if (proof.uploadedBy !== userId && !proof.viewerIds.includes(userId)) {
-        json(res, { error: 'Not authorized to view this proof' }, 403); return;
-      }
+      if (!key) { json(res, { error: 'No key provided' }, 400); return; }
       const signedUrl = await getSignedViewUrl(key);
-      // Mark as viewed by this user
-      if (!state._proofs[key].viewed) state._proofs[key].viewed = {};
-      state._proofs[key].viewed[userId] = Date.now();
-      await writeData(state);
       json(res, { ok: true, url: signedUrl });
     } catch(e) {
+      console.error('View error:', e.message);
       json(res, { error: e.message }, 500);
     }
     return;
