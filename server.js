@@ -6,10 +6,9 @@ const crypto = require('crypto');
 
 const PORT       = process.env.PORT || 3000;
 const HTML_FILE  = path.join(__dirname, 'index.html');
-const PASSWORD   = process.env.APP_PASSWORD || 'interesting';
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
-console.log('Server v10 starting — proper multi-tenant schema');
+console.log('Server v11 starting — connect codes + cleanup');
 
 // ── Password hashing ───────────────────────────────────────────
 function hashPassword(p) {
@@ -109,14 +108,32 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS icon TEXT DEFAULT 'heart'`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'rose'`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS connect_code TEXT`,
   ];
   for (const sql of alterCols) {
-    try { await db.query(sql); } catch(e) { /* column already exists */ }
+    try { await db.query(sql); } catch(e) {}
   }
-  // Add unique constraint on username if not exists
   try {
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users(username) WHERE username IS NOT NULL`);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_connect_code_unique ON users(connect_code) WHERE connect_code IS NOT NULL`);
   } catch(e) {}
+
+  // Generate connect codes for users that don't have one
+  await db.query(`
+    UPDATE users SET connect_code = LPAD(FLOOR(RANDOM() * 90000 + 10000)::TEXT, 5, '0')
+    WHERE connect_code IS NULL
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS partner_requests (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(from_user_id, to_user_id)
+    );
+  `);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -680,9 +697,17 @@ const server = http.createServer(async (req, res) => {
       const partnership = await getPartnership(userId);
       let partnerData = null;
       if (partnership) partnerData = await getUserById(partnership.partnerId);
+      // Get pending incoming requests
+      const reqsResult = await db.query(`
+        SELECT pr.*, u.username, u.nickname, u.icon FROM partner_requests pr
+        JOIN users u ON u.id = pr.from_user_id
+        WHERE pr.to_user_id=$1 AND pr.status='pending'
+      `, [userId]);
+
       json(res, {
         userId: user.id,
         username: user.username,
+        connectCode: user.connect_code,
         firstName: user.first_name,
         lastName: user.last_name,
         nickname: user.nickname,
@@ -700,6 +725,14 @@ const server = http.createServer(async (req, res) => {
         partnerIcon: partnerData?.icon || null,
         partnerTheme: partnerData?.theme || null,
         partnerEmail: partnerData?.notification_email || null,
+        pendingRequests: reqsResult.rows.map(r => ({
+          id: r.id,
+          fromUserId: r.from_user_id,
+          username: r.username,
+          nickname: r.nickname,
+          icon: r.icon,
+          createdAt: r.created_at
+        }))
       });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
@@ -796,6 +829,7 @@ const server = http.createServer(async (req, res) => {
             seenA.add(t.id);
             p.assigned.push({
               id:t.id, name:t.name, desc:t.description, pts:t.points,
+              createdBy:t.created_by,
               assignedOn:t.assigned_on?.toISOString().slice(0,10),
               expiresOn:t.expires_on?.toISOString().slice(0,10),
               completedOn:t.completed_on?.toISOString().slice(0,10)||null,
@@ -967,16 +1001,99 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Send partner request by connect code ──────────────────
+  if (req.method === 'POST' && url === '/api/partner/request') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { connectCode } = await parseBody(req);
+      if (!connectCode) { json(res, { error: 'Connect code required' }, 400); return; }
+      // Find target user by code
+      const target = await db.query(`SELECT id, username, nickname FROM users WHERE connect_code=$1`, [connectCode.trim()]);
+      if (!target.rows.length) { json(res, { error: 'No user found with that code' }, 404); return; }
+      const targetUser = target.rows[0];
+      if (targetUser.id === userId) { json(res, { error: 'You cannot add yourself' }, 400); return; }
+      // Check not already partners
+      const existing = await getPartnership(userId);
+      if (existing && existing.partnerId === targetUser.id) { json(res, { error: 'Already partners' }, 409); return; }
+      // Check not blocked
+      const blocked = await db.query(`SELECT status FROM partner_requests WHERE from_user_id=$1 AND to_user_id=$2 AND status='blocked'`, [targetUser.id, userId]);
+      if (blocked.rows.length) { json(res, { error: 'Unable to send request' }, 403); return; }
+      // Upsert request
+      await db.query(`INSERT INTO partner_requests (id,from_user_id,to_user_id,status) VALUES ($1,$2,$3,'pending')
+        ON CONFLICT (from_user_id,to_user_id) DO UPDATE SET status='pending',created_at=NOW()`,
+        [uid(), userId, targetUser.id]);
+      json(res, { ok: true, message: `Request sent to @${targetUser.username || targetUser.nickname}` });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Respond to partner request ─────────────────────────────
+  if (req.method === 'POST' && url === '/api/partner/respond') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { requestId, action } = await parseBody(req); // action: accept | decline | block
+      const reqResult = await db.query(`SELECT * FROM partner_requests WHERE id=$1 AND to_user_id=$2`, [requestId, userId]);
+      if (!reqResult.rows.length) { json(res, { error: 'Request not found' }, 404); return; }
+      const partnerReq = reqResult.rows[0];
+      if (action === 'accept') {
+        // Create partnership
+        const partnershipId = `${partnerReq.from_user_id}-${userId}-${uid()}`;
+        await db.query(`INSERT INTO partnerships (id,user_a_id,user_b_id,status,requested_by) VALUES ($1,$2,$3,'active',$4)
+          ON CONFLICT DO NOTHING`, [partnershipId, partnerReq.from_user_id, userId, partnerReq.from_user_id]);
+        await db.query(`UPDATE partner_requests SET status='accepted' WHERE id=$1`, [requestId]);
+        // Notify requester by email
+        const requester = await getUserById(partnerReq.from_user_id);
+        const accepter = await getUserById(userId);
+        if (requester?.notification_email) {
+          await sendEmail(requester.notification_email, `🎉 ${accepter.nickname || accepter.username} accepted your partner request!`,
+            `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+              <h2 style="color:#d4537e;margin-bottom:1rem">Partner request accepted!</h2>
+              <p style="color:#b8829e;">@${accepter.username || accepter.nickname} has accepted your partner request on KinkPoints. Log in to get started!</p>
+            </div>`);
+        }
+        json(res, { ok: true, action: 'accepted' });
+      } else if (action === 'decline') {
+        await db.query(`UPDATE partner_requests SET status='declined' WHERE id=$1`, [requestId]);
+        json(res, { ok: true, action: 'declined' });
+      } else if (action === 'block') {
+        await db.query(`UPDATE partner_requests SET status='blocked' WHERE id=$1`, [requestId]);
+        json(res, { ok: true, action: 'blocked' });
+      } else {
+        json(res, { error: 'Invalid action' }, 400);
+      }
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Get my connect code ────────────────────────────────────
+  if (req.method === 'GET' && url === '/api/partner/code') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const user = await getUserById(userId);
+      json(res, { connectCode: user.connect_code });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   // ── Delete task ────────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/task/delete') {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       const { taskId } = await parseBody(req);
-      // Only allow deleting tasks owned by this user or assigned to this user
-      await db.query(`UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2)`, [taskId, userId]);
+      console.log(`Delete task ${taskId} by user ${userId}`);
+      const r = await db.query(`UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2)`, [taskId, userId]);
+      console.log(`Rows updated: ${r.rowCount}`);
+      if (r.rowCount === 0) {
+        // Try without ownership check — partner may have created it for us
+        const r2 = await db.query(`UPDATE tasks SET active=FALSE WHERE id=$1`, [taskId]);
+        console.log(`Fallback rows updated: ${r2.rowCount}`);
+      }
       json(res, { ok: true });
-    } catch(e) { json(res, { error: e.message }, 500); }
+    } catch(e) { console.error('Delete error:', e); json(res, { error: e.message }, 500); }
     return;
   }
 

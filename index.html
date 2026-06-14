@@ -124,7 +124,26 @@
   .logout-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-muted);font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer;transition:all .15s}
   .logout-btn:hover{border-color:var(--accent-mid);color:var(--accent-light)}
 
-  /* ── Album modal ── */
+  /* ── Connect modal ── */
+  .connect-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;gap:1rem}
+  .connect-modal.hidden{display:none}
+  .connect-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:100%;max-width:380px}
+  .connect-card h2{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+  .connect-card p{font-size:13px;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.5}
+  .connect-code-display{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;text-align:center;margin-bottom:1.25rem}
+  .connect-code-label{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+  .connect-code-number{font-size:36px;font-weight:700;color:var(--accent-mid);letter-spacing:6px;font-variant-numeric:tabular-nums}
+  .connect-divider{display:flex;align-items:center;gap:10px;margin:1.25rem 0;color:var(--text-muted);font-size:12px}
+  .connect-divider::before,.connect-divider::after{content:'';flex:1;border-top:1px solid var(--border)}
+  .connect-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:#aaa;font-size:24px;cursor:pointer}
+
+  /* ── Pending request banner ── */
+  .request-banner{background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .request-banner-text{font-size:13px;color:var(--accent-light);display:flex;align-items:center;gap:8px}
+  .request-banner-actions{display:flex;gap:6px;flex-shrink:0}
+  .req-accept{height:28px;padding:0 12px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:12px;font-weight:600;cursor:pointer}
+  .req-decline{height:28px;padding:0 10px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-weight:600;cursor:pointer}
+  .req-block{height:28px;padding:0 10px;background:transparent;color:#e06060;border:1px solid #5a2020;border-radius:var(--radius-md);font-size:12px;font-weight:600;cursor:pointer}
   .album-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;flex-direction:column;padding:1.5rem}
   .album-modal.hidden{display:none}
   .album-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-shrink:0}
@@ -384,6 +403,28 @@
 </head>
 <body class="theme-default">
 
+<!-- Connect modal -->
+<div class="connect-modal hidden" id="connectModal">
+  <button class="connect-close" onclick="closeConnect()">✕</button>
+  <div class="connect-card">
+    <h2>Add a Partner</h2>
+    <p>Share your connect code with someone, or enter theirs to send a partner request.</p>
+    <div class="connect-code-display">
+      <div class="connect-code-label">Your connect code</div>
+      <div class="connect-code-number" id="myConnectCode">—————</div>
+    </div>
+    <div class="connect-divider">or enter theirs</div>
+    <div class="add-form" style="background:transparent;border:none;padding:0;gap:10px">
+      <div>
+        <label for="partnerCodeInput">Partner's connect code</label>
+        <input type="text" id="partnerCodeInput" placeholder="e.g. 48291" maxlength="6" style="text-align:center;font-size:22px;letter-spacing:4px;font-weight:700"/>
+      </div>
+      <button class="add-btn" onclick="sendPartnerRequest()">Send partner request</button>
+      <div id="connectMsg" style="font-size:13px;text-align:center;min-height:18px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Album modal -->
 <div class="album-modal hidden" id="albumModal">
   <div class="album-header">
@@ -440,6 +481,10 @@
   <div class="top-bar">
     <span class="app-brand">KinkPoints</span>
     <div class="top-bar-right">
+      <button class="album-btn" id="connectBtn" onclick="openConnect()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Add Partner
+      </button>
       <button class="album-btn" onclick="openAlbum()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
         Album
@@ -452,6 +497,9 @@
   <div class="profile-switcher" id="profileSwitcher">
     <!-- populated by renderProfileSwitcher() -->
   </div>
+
+  <!-- Pending partner requests -->
+  <div id="pendingRequests"></div>
 
   <!-- Screen tabs -->
   <div class="screen-tabs">
@@ -692,6 +740,7 @@ async function bootApp() {
   viewingProfile = currentUser.userId;
   await loadFromServer();
   updateProfileTabLabel();
+  renderPendingRequests();
 }
 
 // Check if already logged in on page load
@@ -1074,9 +1123,10 @@ function renderAssigned() {
     // Own profile = can check off. Partner's assigned tasks viewed by partner = can check. Viewing partner's profile = read only
     const canCheck = isOwnProfile() && !isExpired;
     const isReviewer = !isOwnProfile() || !currentUser.partnerId;
+    const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
     const row=makeTaskRow({
       done:isDone, name:t.name, desc:t.desc, pts:t.pts, extraClass:rowExtra,
-      extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:isOwnProfile(),
+      extraButtons:expiryTag, checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'assigned',
       proof:t.proof, canUpload:isOwnProfile(), isReviewer,
       onCheck:()=>{
@@ -1589,17 +1639,18 @@ async function notifyAssigned(task, expiresOn) {
 
 // ── Task deletion helpers ──────────────────────────────────────
 async function deleteTask(taskId) {
-  // Remove from local state
+  // Remove from local state immediately for instant UI feedback
   const p = ps(viewingProfile);
   p.assigned = (p.assigned||[]).filter(t=>t.id!==taskId);
   Object.keys(p.days||{}).forEach(dk=>{ if(p.days[dk].tasks) p.days[dk].tasks = p.days[dk].tasks.filter(t=>t.id!==taskId); });
   Object.keys(p.monthly||{}).forEach(mk=>{ p.monthly[mk] = (p.monthly[mk]||[]).filter(t=>t.id!==taskId); });
   p.repeating = (p.repeating||[]).filter(t=>t.id!==taskId);
-  // Persist to DB
+  renderTracker();
+  // Persist to DB then reload to confirm
   try {
     await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ taskId }) });
+    await loadFromServer(); // reload so deleted task doesn't reappear on next refresh
   } catch(e) { console.error('Delete failed:', e); }
-  renderTracker();
 }
 
 async function deleteTaskFrom(taskId, fromDate) {
@@ -1610,11 +1661,80 @@ async function deleteTaskFrom(taskId, fromDate) {
   } catch(e) { console.error('Delete-from failed:', e); }
   renderTracker();
 }
+
+// ── Connect / Partner requests ─────────────────────────────────
+function openConnect() {
+  document.getElementById('myConnectCode').textContent = currentUser.connectCode || '—————';
+  document.getElementById('partnerCodeInput').value = '';
+  document.getElementById('connectMsg').textContent = '';
+  document.getElementById('connectModal').classList.remove('hidden');
+}
+function closeConnect() {
+  document.getElementById('connectModal').classList.add('hidden');
+}
+
+async function sendPartnerRequest() {
+  const code = document.getElementById('partnerCodeInput').value.trim();
+  const msg = document.getElementById('connectMsg');
+  if (!code) { msg.style.color='#e06060'; msg.textContent='Please enter a connect code'; return; }
+  try {
+    const res = await fetch('/api/partner/request', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ connectCode: code }) });
+    const data = await res.json();
+    if (res.ok) {
+      msg.style.color='#6abf6a'; msg.textContent='✓ ' + data.message;
+      document.getElementById('partnerCodeInput').value = '';
+    } else {
+      msg.style.color='#e06060'; msg.textContent=data.error||'Something went wrong';
+    }
+  } catch(e) { msg.style.color='#e06060'; msg.textContent='Connection error'; }
+}
+
+async function respondToRequest(requestId, action) {
+  try {
+    const res = await fetch('/api/partner/respond', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ requestId, action }) });
+    if (res.ok) await bootApp();
+  } catch(e) { console.error('Respond error:', e); }
+}
+
+function renderPendingRequests() {
+  const container = document.getElementById('pendingRequests');
+  container.innerHTML = '';
+  const requests = currentUser.pendingRequests || [];
+  requests.forEach(req => {
+    const banner = document.createElement('div');
+    banner.className = 'request-banner';
+    const displayName = req.nickname ? `${req.nickname} (@${req.username||''})` : `@${req.username||'someone'}`;
+    banner.innerHTML = `
+      <div class="request-banner-text">
+        ${iconSVG(req.icon||'heart', 16)}
+        <span><strong>${esc(displayName)}</strong> wants to add you as a partner</span>
+      </div>
+      <div class="request-banner-actions">
+        <button class="req-accept" onclick="respondToRequest('${req.id}','accept')">Accept</button>
+        <button class="req-decline" onclick="respondToRequest('${req.id}','decline')">Decline</button>
+        <button class="req-block" onclick="respondToRequest('${req.id}','block')">Block</button>
+      </div>`;
+    container.appendChild(banner);
+  });
+}
+
 document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPassword').focus();});
 document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
 // ── Poll every 30s ─────────────────────────────────────────────
-setInterval(()=>{if(!saveTimer&&currentUser)loadFromServer();},30000);
+setInterval(async () => {
+  if (!currentUser) return;
+  if (!saveTimer) loadFromServer();
+  // Refresh pending requests
+  try {
+    const res = await fetch('/api/me', { credentials:'include' });
+    if (res.ok) {
+      const data = await res.json();
+      currentUser.pendingRequests = data.pendingRequests || [];
+      renderPendingRequests();
+    }
+  } catch(e) {}
+}, 30000);
 
 // ── Themes ─────────────────────────────────────────────────────
 const THEMES = {
