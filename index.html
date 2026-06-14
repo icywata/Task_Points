@@ -197,8 +197,8 @@
 
   /* ── Screen tabs ── */
   .screen-tabs{display:flex;gap:6px;margin-bottom:1.5rem}
-  .screen-tab{flex:1;height:36px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-card);color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
-  .screen-tab svg{width:15px;height:15px}
+  .screen-tab{flex:1;height:38px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-card);color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;white-space:nowrap;min-width:0}
+  .screen-tab svg{width:15px;height:15px;flex-shrink:0;display:block}
   .screen-tab:hover{border-color:var(--accent-mid);color:var(--accent-light)}
   .screen-tab.active{background:var(--accent-bg);border-color:var(--accent-mid);color:var(--accent-light)}
 
@@ -1364,9 +1364,11 @@ function setSync(cls,text) {
 function updateProfileTabLabel() {
   const tab = document.getElementById('tab-profile');
   const isOwn = viewingProfile === currentUser.userId;
-  // Replace just the text node, keep the SVG intact
-  const textNode = Array.from(tab.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
-  if (textNode) textNode.textContent = isOwn ? '\n      Profile\n    ' : '\n      Permissions\n    ';
+  const icon = isOwn
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>`;
+  const label = isOwn ? 'Profile' : 'Permissions';
+  tab.innerHTML = `${icon} ${label}`;
 }
 
 // ── Navigation ─────────────────────────────────────────────────
