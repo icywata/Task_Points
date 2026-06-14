@@ -2888,6 +2888,23 @@ async function downloadProof(key) {
   }
 }
 
+function saveProofToDevice() {
+  const img = document.getElementById('proofModalImg');
+  if (!img.src) return;
+  const a = document.createElement('a');
+  a.href = img.src;
+  a.download = 'kinkpoints-proof.jpg';
+  a.target = '_blank';
+  a.click();
+}
+
+async function removeFromAlbum(key) {
+  await fetch('/api/proof/decide', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body: JSON.stringify({ key, save: false }) });
+  closeProofModal();
+  openAlbum();
+}
+
 function triggerFileUpload(taskRef, taskType, onUploaded) {
   const input = document.createElement('input');
   input.type = 'file';
