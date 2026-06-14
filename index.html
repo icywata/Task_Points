@@ -1575,7 +1575,8 @@ function renderMonthly() {
   tasks.forEach(t=>{
     const isDone=!!done[t.id];
     const canCheck=isOwnProfile();
-    const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:isOwnProfile(),taskRef:t,visibleTo:t.visibleTo,
+    const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
+    const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'monthly-row',checkDisabled:!canCheck,showDelete:canDelete,taskRef:t,visibleTo:t.visibleTo,
       onCheck:()=>{if(!ps().monthlyDone[mk])ps().monthlyDone[mk]={};ps().monthlyDone[mk][t.id]=isDone?null:selectedDate;scheduleSave();renderTracker();},
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1590,8 +1591,9 @@ function renderDaily() {
   repeating.forEach(t=>{
     const isDone=!!rdone[t.id];
     const canCheck=isOwnProfile();
+    const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
     const row=makeTaskRow({done:isDone,name:t.name,desc:t.desc,pts:t.pts,extraClass:'repeat-row',
-      checkDisabled:!canCheck,showDelete:isOwnProfile(),taskRef:t,visibleTo:t.visibleTo,
+      checkDisabled:!canCheck,showDelete:canDelete,taskRef:t,visibleTo:t.visibleTo,
       extraButtons:isOwnProfile()?`<button class="task-delete-future">Del future</button>`:'',
       onCheck:()=>{if(!ps().repeatingDone[selectedDate])ps().repeatingDone[selectedDate]={};ps().repeatingDone[selectedDate][t.id]=!isDone;scheduleSave();renderTracker();},
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
@@ -1605,10 +1607,11 @@ function renderDaily() {
   if(!tasks.length&&!repeating.length){list.innerHTML=`<div class="empty-state"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1"/></svg>No tasks for this day${isOwnProfile()?' — add one below':''}</div>`;return;}
   tasks.forEach((t,i)=>{
     const canCheck = isOwnProfile();
-    const isReviewer = !isOwnProfile() || !currentUser.partnerId; // partner reviews, or self if no partner
+    const isReviewer = !isOwnProfile() || !currentUser.partnerId;
+    const canDelete = isOwnProfile() || t.createdBy === currentUser.userId;
     const row=makeTaskRow({
       done:t.done, name:t.name, desc:t.desc, pts:t.pts,
-      checkDisabled:!canCheck, showDelete:isOwnProfile(),
+      checkDisabled:!canCheck, showDelete:canDelete,
       requireProof:t.requireProof, taskRef:t, taskType:'daily',
       proof:t.proof, canUpload:isOwnProfile(), isReviewer, visibleTo:t.visibleTo, createdBy:t.createdBy,
       onCheck:()=>{ getDayTasks(selectedDate)[i].done^=true; scheduleSave();renderTracker(); },

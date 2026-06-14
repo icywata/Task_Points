@@ -953,7 +953,7 @@ const server = http.createServer(async (req, res) => {
           const mk = t.month_key;
           if (!p.monthly[mk]) p.monthly[mk] = [];
           if (!p.monthly[mk].find(x => x.id === t.id)) {
-            p.monthly[mk].push({ id:t.id, name:t.name, desc:t.description, pts:t.points, visibleTo:t.visible_to });
+            p.monthly[mk].push({ id:t.id, name:t.name, desc:t.description, pts:t.points, visibleTo:t.visible_to, createdBy:t.created_by });
           }
           if (t.completed_on) {
             if (!p.monthlyDone[mk]) p.monthlyDone[mk] = {};
@@ -968,7 +968,7 @@ const server = http.createServer(async (req, res) => {
         repeatingTasks.rows.forEach(t => {
           if (!seen.has(t.id)) {
             seen.add(t.id);
-            p.repeating.push({ id:t.id, name:t.name, desc:t.description, pts:t.points, startDate:t.start_date?.toISOString().slice(0,10), requireProof:t.require_proof, visibleTo:t.visible_to });
+            p.repeating.push({ id:t.id, name:t.name, desc:t.description, pts:t.points, startDate:t.start_date?.toISOString().slice(0,10), requireProof:t.require_proof, visibleTo:t.visible_to, createdBy:t.created_by });
             if (t.deleted_from) p.repeatingDeleted[t.id] = t.deleted_from.toISOString().slice(0,10);
           }
           if (t.completed_on) {
