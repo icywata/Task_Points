@@ -299,6 +299,7 @@
   .proof-reject-btn{height:42px;padding:0 24px;background:transparent;color:#e06060;border:1px solid #e06060;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
   .proof-reject-btn:hover{background:#2d1010}
   .proof-save-check{display:flex;align-items:center;gap:8px;color:#aaa;font-size:13px;cursor:pointer}
+  .proof-save-check.hidden{display:none!important}
   .proof-save-check input{width:16px;height:16px;accent-color:var(--accent-mid)}
   .proof-modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1}
   .proof-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
@@ -1759,7 +1760,7 @@ async function openProofForUpload(file, taskRef, taskType, onUploaded) {
   }
 }
 
-async function openProofModal(key, isReviewer, taskRef, onApprove, onReject) {
+async function openProofModal(key, isReviewer, taskRef, onApprove, onReject, isAlbumView) {
   const res = await fetch('/api/proof/view', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1768,27 +1769,34 @@ async function openProofModal(key, isReviewer, taskRef, onApprove, onReject) {
   const data = await res.json();
   if (!res.ok) { alert('Could not load photo: ' + data.error); return; }
 
-  // Determine if current user is a reviewer for this proof
-  // Reviewer = their ID is in proof.viewerIds, OR task has no specific viewer (self-review)
   const proof = taskRef?.proof;
   const viewerIds = proof?.viewerIds || [];
-  const effectiveIsReviewer = isReviewer ||
+  const effectiveIsReviewer = !isAlbumView && (isReviewer ||
     viewerIds.includes(currentUser.userId) ||
-    (viewerIds.length === 0) ||
-    (viewerIds.length === 1 && viewerIds[0] === currentUser.userId);
+    viewerIds.length === 0 ||
+    (viewerIds.length === 1 && viewerIds[0] === currentUser.userId));
 
-  proofModalContext = { key, taskRef, isReviewer: effectiveIsReviewer, onApprove, onReject };
+  proofModalContext = { key, taskRef, isReviewer: effectiveIsReviewer, onApprove, onReject, isAlbumView };
   document.getElementById('proofModalImg').src = data.url;
-  document.getElementById('proofModalTitle').textContent = effectiveIsReviewer
-    ? 'Review photo proof'
-    : 'Your submitted proof — awaiting review';
 
+  const saveCheckRow = document.querySelector('.proof-save-check');
   const actions = document.getElementById('proofModalActions');
-  if (effectiveIsReviewer) {
+
+  if (isAlbumView) {
+    document.getElementById('proofModalTitle').textContent = 'Saved photo';
+    saveCheckRow.style.display = 'none';
+    actions.innerHTML = `
+      <button class="proof-approve-btn" onclick="saveProofToDevice()">⬇ Save to device</button>
+      <button class="proof-reject-btn" onclick="removeFromAlbum('${key}')">🗑 Remove from album</button>`;
+  } else if (effectiveIsReviewer) {
+    document.getElementById('proofModalTitle').textContent = 'Review photo proof';
+    saveCheckRow.style.display = 'flex';
     actions.innerHTML = `
       <button class="proof-approve-btn" onclick="approveProof()">✓ Approve & complete</button>
       <button class="proof-reject-btn" onclick="rejectProof()">✗ Reject</button>`;
   } else {
+    document.getElementById('proofModalTitle').textContent = 'Your submitted proof — awaiting review';
+    saveCheckRow.style.display = 'none';
     actions.innerHTML = `<button class="proof-approve-btn" onclick="closeProofModal()" style="background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border)">Close</button>`;
   }
   document.getElementById('proofModal').classList.remove('hidden');
@@ -1926,7 +1934,7 @@ function openAlbum() {
       el.innerHTML = `
         <img src="/api/proof/thumb?key=${encodeURIComponent(item.key)}" alt="${esc(item.name)}" onerror="this.parentElement.style.display='none'"/>
         <div class="album-item-label">${esc(item.name)}</div>`;
-      el.onclick = () => openProofModal(item.key, false, {}, ()=>{}, ()=>{});
+      el.onclick = () => openProofModal(item.key, false, {}, ()=>{}, ()=>{}, true);
       grid.appendChild(el);
     });
   }
@@ -1937,7 +1945,36 @@ function closeAlbum() {
   document.getElementById('albumModal').classList.add('hidden');
 }
 
-function triggerFileUpload(taskRef, taskType, onUploaded) {
+function saveProofToDevice() {
+  const img = document.getElementById('proofModalImg');
+  if (!img.src) return;
+  const a = document.createElement('a');
+  a.href = img.src;
+  a.download = 'kinkpoints-proof.jpg';
+  a.target = '_blank';
+  a.click();
+}
+
+async function removeFromAlbum(key) {
+  if (!confirm('Remove this photo from your album? This will delete it permanently.')) return;
+  await fetch('/api/proof/decide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, action: 'delete' })
+  });
+  // Remove savedBy flag from any task that has this key
+  ['gg','dad'].forEach(pid => {
+    const p = state[pid];
+    if (!p) return;
+    Object.values(p.days||{}).forEach(day=>{
+      (day.tasks||[]).forEach(t=>{ if(t.proof?.key===key && t.proof.savedBy) delete t.proof.savedBy[currentUser.userId]; });
+    });
+    (p.assigned||[]).forEach(t=>{ if(t.proof?.key===key && t.proof.savedBy) delete t.proof.savedBy[currentUser.userId]; });
+  });
+  scheduleSave();
+  closeProofModal();
+  openAlbum(); // refresh album view
+}
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
