@@ -1938,7 +1938,9 @@ function renderShop() {
         el.className = 'shop-item';
         const scopeLabel = item.visibleTo === currentUser.partnerId
           ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>`
-          : `<span class="section-badge repeat" style="font-size:9px">👁 Everyone</span>`;
+          : item.visibleTo
+            ? `<span class="section-badge assigned" style="font-size:9px">🔒 Private</span>`
+            : `<span class="section-badge repeat" style="font-size:9px">👁 Everyone</span>`;
         el.innerHTML = `
           <div class="shop-item-body">
             <div class="shop-item-name">${esc(item.name)}</div>
@@ -2001,13 +2003,15 @@ function renderShop() {
     const formDiv = document.createElement('div');
     let partnerOptions = '';
     if (currentUser.partnerId) {
-      // Partner first — default
+      // Has partner — default to partner only (private)
       partnerOptions += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+      partnerOptions += `<option value="">Everyone</option>`;
+    } else {
+      // No partner yet — default to everyone (building shop for future partners)
+      partnerOptions += `<option value="">Everyone</option>`;
     }
-    // Solo always available
+    // Solo always last — opt-in
     partnerOptions += `<option value="${currentUser.userId}">Solo (just me)</option>`;
-    // Everyone only if multiple partners (for now just show if partnerId exists, will expand later)
-    // Hidden for single-partner users — no point showing "everyone" when there's only one person
     formDiv.innerHTML = `
       <div class="section-head">Add a reward to your shop</div>
       <div class="add-form">
@@ -2555,10 +2559,11 @@ function openRewardEdit(item) {
   sel.innerHTML = '';
   if (currentUser.partnerId) {
     sel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
+    sel.innerHTML += `<option value="">Everyone</option>`;
+  } else {
+    sel.innerHTML += `<option value="">Everyone</option>`;
   }
   sel.innerHTML += `<option value="${currentUser.userId}">Solo (just me)</option>`;
-  // "Everyone" only shown for multi-partner accounts
-  // (future: when multiple partners are supported, add them all here)
   sel.value = item.visibleTo || '';
   const modal = document.getElementById('shopEditModal');
 
@@ -2665,18 +2670,28 @@ setInterval(async () => {
     const res = await fetch('/api/me', { credentials:'include' });
     if (res.ok) {
       const data = await res.json();
-      // Update partner info (theme, icon, nickname may have changed)
       const partnerThemeChanged = data.partnerTheme !== currentUser.partnerTheme;
+      const partnerDisconnected = currentUser.partnerId && !data.partnerId;
       currentUser.pendingRequests  = data.pendingRequests || [];
       currentUser.partnerTheme     = data.partnerTheme;
       currentUser.partnerIcon      = data.partnerIcon;
       currentUser.partnerNickname  = data.partnerNickname;
       currentUser.partnerUsername  = data.partnerUsername;
       currentUser.partnerRole      = data.partnerRole;
+      currentUser.partnerId        = data.partnerId;
+      currentUser.partnershipId    = data.partnershipId;
       renderPendingRequests();
       if (partnerThemeChanged) {
         applyTheme(viewingProfile);
         renderProfileSwitcher();
+      }
+      if (partnerDisconnected) {
+        // Partner was removed — switch to own profile and reload
+        viewingProfile = currentUser.userId;
+        applyTheme(currentUser.userId);
+        await loadFromServer();
+        renderAll();
+        toast('Your partner connection was removed', 'info');
       }
     }
   } catch(e) {}

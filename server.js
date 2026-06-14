@@ -951,19 +951,23 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
       if (key !== 'Daemoni') { json(res, { error: 'Unauthorized' }, 401); return; }
       const { id } = await parseBody(req);
       if (!id.startsWith('test_')) { json(res, { error: 'Can only delete test users' }, 403); return; }
-      // Delete all related data
+      // Delete in safe order — children before parents to avoid FK violations
       await db.query(`DELETE FROM sessions WHERE user_id=$1`, [id]);
+      await db.query(`DELETE FROM email_verifications WHERE user_id=$1`, [id]);
+      await db.query(`DELETE FROM partner_invites WHERE from_user_id=$1`, [id]);
+      await db.query(`DELETE FROM partner_requests WHERE from_user_id=$1 OR to_user_id=$1`, [id]);
+      await db.query(`DELETE FROM partnership_permissions WHERE granting_user_id=$1 OR grantee_user_id=$1`, [id]);
+      await db.query(`DELETE FROM partnerships WHERE user_a_id=$1 OR user_b_id=$1`, [id]);
       await db.query(`DELETE FROM task_completions WHERE completed_by=$1`, [id]);
       await db.query(`DELETE FROM monthly_completions WHERE completed_by=$1`, [id]);
-      await db.query(`DELETE FROM tasks WHERE owner_id=$1 OR created_by=$1`, [id]);
-      await db.query(`DELETE FROM partnerships WHERE user_a_id=$1 OR user_b_id=$1`, [id]);
-      await db.query(`DELETE FROM partner_requests WHERE from_user_id=$1 OR to_user_id=$1`, [id]);
-      await db.query(`DELETE FROM partner_invites WHERE from_user_id=$1`, [id]);
+      await db.query(`DELETE FROM proof_photos WHERE uploaded_by=$1`, [id]);
+      // Soft delete tasks so real user's history isn't broken
+      await db.query(`UPDATE tasks SET active=FALSE WHERE owner_id=$1 OR created_by=$1`, [id]);
       await db.query(`DELETE FROM inventory WHERE owner_id=$1 OR redeemed_by=$1`, [id]);
-      await db.query(`DELETE FROM shop_items WHERE owner_id=$1`, [id]);
+      await db.query(`UPDATE shop_items SET active=FALSE WHERE owner_id=$1`, [id]);
       await db.query(`DELETE FROM users WHERE id=$1 AND is_test_user=TRUE`, [id]);
       json(res, { ok: true });
-    } catch(e) { json(res, { error: e.message }, 500); }
+    } catch(e) { console.error('Delete test user error:', e); json(res, { error: e.message }, 500); }
     return;
   }
 
