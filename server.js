@@ -144,6 +144,127 @@ function scheduleDailyReminders() {
   console.log(`Daily reminders scheduled — first run in ${Math.round(msUntil8am()/60000)} minutes`);
 }
 
+// ── Simple password hash (pre-bcrypt, upgrade later) ──────────
+const crypto = require('crypto');
+function simpleHash(password) {
+  return crypto.createHash('sha256').update(password + 'kinkpoints_salt').digest('hex');
+}
+
+// ── Bootstrap admin page HTML ──────────────────────────────────
+const BOOTSTRAP_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Bootstrap Admin</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#e0e0e0;min-height:100vh;padding:2rem 1rem;display:flex;align-items:flex-start;justify-content:center}
+  .wrap{width:100%;max-width:560px}
+  h1{font-size:20px;font-weight:700;color:#fff;margin-bottom:4px}
+  .subtitle{font-size:13px;color:#666;margin-bottom:2rem}
+  .warning{background:#2d1a1a;border:1px solid #5a2020;border-radius:10px;padding:12px 16px;font-size:13px;color:#e06060;margin-bottom:1.5rem}
+  .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;margin-bottom:1rem}
+  .card h2{font-size:14px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#888;margin-bottom:1rem}
+  .field{margin-bottom:12px}
+  label{display:block;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#666;margin-bottom:5px}
+  input{width:100%;background:#111;border:1px solid #2a2a2a;border-radius:8px;color:#e0e0e0;font-family:inherit;font-size:14px;padding:9px 12px;outline:none;transition:border-color .15s}
+  input:focus{border-color:#d4537e}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .admin-field{background:#1a1a2a;border:1px solid #2a2a4a;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem}
+  .admin-field h2{font-size:14px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#4a6aaa;margin-bottom:1rem}
+  .btn{width:100%;height:44px;background:#d4537e;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:1.5rem;transition:background .15s}
+  .btn:hover{background:#993556}
+  .result{margin-top:1rem;padding:12px 16px;border-radius:10px;font-size:14px;display:none}
+  .result.ok{background:#1a2d1a;border:1px solid #2a5a2a;color:#6abf6a}
+  .result.err{background:#2d1a1a;border:1px solid #5a2020;color:#e06060}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔐 Bootstrap Admin</h1>
+  <p class="subtitle">One-time setup — create user accounts from existing profile data</p>
+
+  <div class="warning">⚠️ This page is for one-time use only. Once bootstrapped, do not use again.</div>
+
+  <div class="admin-field">
+    <h2>Admin Key</h2>
+    <div class="field">
+      <label>Secret Key</label>
+      <input type="password" id="adminKey" placeholder="Enter admin key" />
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>💙 Daddy Profile</h2>
+    <div class="row">
+      <div class="field"><label>First Name</label><input type="text" id="dadFirstName" placeholder="First name" /></div>
+      <div class="field"><label>Last Name</label><input type="text" id="dadLastName" placeholder="Last name" /></div>
+    </div>
+    <div class="field"><label>Nickname</label><input type="text" id="dadNickname" value="Daddy" /></div>
+    <div class="field"><label>Email</label><input type="email" id="dadEmail" placeholder="daddy@email.com" /></div>
+    <div class="field"><label>Password</label><input type="password" id="dadPassword" placeholder="Choose a password" /></div>
+  </div>
+
+  <div class="card">
+    <h2>🩷 Good Girl Profile</h2>
+    <div class="row">
+      <div class="field"><label>First Name</label><input type="text" id="ggFirstName" placeholder="First name" /></div>
+      <div class="field"><label>Last Name</label><input type="text" id="ggLastName" placeholder="Last name" /></div>
+    </div>
+    <div class="field"><label>Nickname</label><input type="text" id="ggNickname" value="Good Girl" /></div>
+    <div class="field"><label>Email</label><input type="email" id="ggEmail" placeholder="goodgirl@email.com" /></div>
+    <div class="field"><label>Password</label><input type="password" id="ggPassword" placeholder="Choose a password" /></div>
+  </div>
+
+  <button class="btn" onclick="bootstrap()">Create Users & Migrate Data</button>
+  <div class="result" id="result"></div>
+</div>
+<script>
+async function bootstrap() {
+  const adminKey   = document.getElementById('adminKey').value.trim();
+  const dadFirst   = document.getElementById('dadFirstName').value.trim();
+  const dadLast    = document.getElementById('dadLastName').value.trim();
+  const dadNick    = document.getElementById('dadNickname').value.trim();
+  const dadEmail   = document.getElementById('dadEmail').value.trim();
+  const dadPass    = document.getElementById('dadPassword').value;
+  const ggFirst    = document.getElementById('ggFirstName').value.trim();
+  const ggLast     = document.getElementById('ggLastName').value.trim();
+  const ggNick     = document.getElementById('ggNickname').value.trim();
+  const ggEmail    = document.getElementById('ggEmail').value.trim();
+  const ggPass     = document.getElementById('ggPassword').value;
+
+  if (!adminKey||!dadEmail||!dadPass||!ggEmail||!ggPass) {
+    showResult('Please fill in all required fields', false); return;
+  }
+
+  const res = await fetch('/api/admin/bootstrap', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminKey,
+      daddy:   { firstName:dadFirst, lastName:dadLast, nickname:dadNick, email:dadEmail, password:dadPass },
+      goodgirl:{ firstName:ggFirst,  lastName:ggLast,  nickname:ggNick,  email:ggEmail,  password:ggPass  }
+    })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showResult('✓ ' + data.message, true);
+  } else {
+    showResult('Error: ' + data.error, false);
+  }
+}
+
+function showResult(msg, ok) {
+  const el = document.getElementById('result');
+  el.textContent = msg;
+  el.className = 'result ' + (ok ? 'ok' : 'err');
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>`;
+
 // ── Server ─────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const url = req.url.split('?')[0];
@@ -153,6 +274,63 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-App-Password');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // ── Bootstrap admin page ──────────────────────────────────────
+  if (req.method === 'GET' && url === '/admin/bootstrap') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(BOOTSTRAP_HTML);
+    return;
+  }
+
+  if (req.method === 'POST' && url === '/api/admin/bootstrap') {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const { adminKey, daddy, goodgirl } = JSON.parse(body);
+
+        // Check secret key
+        if (adminKey !== 'Daemoni') {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid admin key' }));
+          return;
+        }
+
+        // Load existing data
+        const state = await readData();
+
+        // Migrate gg profile
+        if (!state.gg) state.gg = {};
+        state.gg.firstName         = goodgirl.firstName;
+        state.gg.lastName          = goodgirl.lastName;
+        state.gg.nickname          = goodgirl.nickname || 'Good Girl';
+        state.gg.notificationEmail = goodgirl.email;
+        state.gg.passwordHash      = simpleHash(goodgirl.password);
+        state.gg.bootstrapped      = true;
+
+        // Migrate dad profile
+        if (!state.dad) state.dad = {};
+        state.dad.firstName         = daddy.firstName;
+        state.dad.lastName          = daddy.lastName;
+        state.dad.nickname          = daddy.nickname || 'Daddy';
+        state.dad.notificationEmail = daddy.email;
+        state.dad.passwordHash      = simpleHash(daddy.password);
+        state.dad.bootstrapped      = true;
+
+        // Mark them as partnered
+        state.partnership = { userA: 'dad', userB: 'gg', status: 'active', since: new Date().toISOString() };
+
+        await writeData(state);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, message: 'Users bootstrapped and partnered successfully' }));
+      } catch(e) {
+        console.error('Bootstrap error:', e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
 
   // Serve HTML
   if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
