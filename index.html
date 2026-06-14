@@ -292,7 +292,14 @@
   .add-btn svg{width:16px;height:16px}
   .divider{border:none;border-top:1px solid var(--border-light);margin:1.5rem 0}
 
-  /* ── Photo proof ── */
+  /* ── Toast notifications ── */
+  #toastContainer{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:300;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+  .toast{background:#1e1e1e;color:#fff;font-size:13px;font-weight:600;padding:10px 18px;border-radius:30px;border:1px solid #333;box-shadow:0 4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;white-space:nowrap;animation:toastIn .2s ease,toastOut .3s ease 2.5s forwards}
+  .toast.success{background:#1a2d1a;border-color:#2a5a2a;color:#6abf6a}
+  .toast.error{background:#2d1a1a;border-color:#5a2020;color:#e06060}
+  .toast.info{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent-light)}
+  @keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes toastOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(10px)}}
   .proof-required-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2d1a2d;color:#c084e0;padding:2px 8px;border-radius:20px;white-space:nowrap}
   .proof-awaiting-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2a2010;color:#e8a84a;padding:2px 8px;border-radius:20px;white-space:nowrap}
   .proof-rejected-badge{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:#2d1010;color:#e06060;padding:2px 8px;border-radius:20px;white-space:nowrap}
@@ -402,6 +409,7 @@
 </style>
 </head>
 <body class="theme-default">
+<div id="toastContainer"></div>
 
 <!-- Connect modal -->
 <div class="connect-modal hidden" id="connectModal">
@@ -1424,14 +1432,14 @@ function renderShop() {
 
 function redeemReward(item) {
   const myBalance = getBalance(currentUser.userId);
-  if (myBalance < item.cost) return;
-  // Add to MY inventory, tag with fromUserId = partner
+  if (myBalance < item.cost) { toast('Not enough points', 'error'); return; }
   ps(currentUser.userId).inventory.push({
     id: uid(), rewardId: item.id, name: item.name, desc: item.desc,
     cost: item.cost, fromUserId: currentUser.partnerId,
     redeemedAt: Date.now(), fulfilled: false
   });
   scheduleSave(); renderShop(); renderTotals();
+  toast(`🎁 "${item.name}" redeemed for ${item.cost} pts`, 'success');
 }
 
 // ── Permissions helpers ────────────────────────────────────────
@@ -1569,9 +1577,7 @@ async function saveProfile() {
     applyTheme(currentUser.userId);
     renderProfile();
     renderProfileSwitcher();
-    const msg = document.getElementById('profileSavedMsg');
-    msg.textContent = '✓ Profile saved';
-    setTimeout(()=>{ msg.textContent=''; }, 3000);
+    toast('✓ Profile saved', 'success');
   } catch(e) { console.error(e); alert('Save failed: ' + e.message); }
 }
 
@@ -1583,17 +1589,25 @@ function addTask() {
   if(!name){document.getElementById('taskName').focus();return;}
   if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
   const requireProof = document.getElementById('requireProof').checked;
-  if(addType==='monthly'){const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof});}
-  else if(addType==='repeat'){ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof});}
-  else if(addType==='assigned'){
+  let toastMsg = '';
+  if(addType==='monthly'){
+    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof});
+    toastMsg = '📅 Monthly task added';
+  } else if(addType==='repeat'){
+    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof});
+    toastMsg = '↻ Repeating task added';
+  } else if(addType==='assigned'){
     const expiry=document.getElementById('taskExpiry').value;
     if(!expiry){document.getElementById('taskExpiry').focus();return;}
     const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof};
     ps(viewingProfile).assigned.push(task);
     document.getElementById('taskExpiry').value='';
     notifyAssigned(task,expiry);
+    const targetName = isOwnProfile() ? 'yourself' : (currentUser.partnerNickname || 'partner');
+    toastMsg = `⚑ Task assigned to ${targetName}`;
   } else {
     getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof});
+    toastMsg = '✓ Task added';
   }
   document.getElementById('taskName').value='';
   document.getElementById('taskDesc').value='';
@@ -1601,6 +1615,7 @@ function addTask() {
   document.getElementById('requireProof').checked=false;
   document.getElementById('proofReviewerRow').style.display='none';
   scheduleSave();renderTracker();
+  toast(toastMsg, 'success');
   document.getElementById('taskName').focus();
 }
 
@@ -1610,13 +1625,13 @@ function addReward() {
   const cost=parseInt(document.getElementById('rewardCost').value);
   if(!name){document.getElementById('rewardName').focus();return;}
   if(!cost||cost<1){document.getElementById('rewardCost').focus();return;}
-  // Add to whichever profile's shop we're viewing
   const targetId = isOwnProfile() ? currentUser.userId : viewingProfile;
   ps(targetId).shop.push({id:uid(),name,desc,cost});
   document.getElementById('rewardName').value='';
   document.getElementById('rewardDesc').value='';
   document.getElementById('rewardCost').value='';
   scheduleSave();renderShop();
+  toast('🎁 Reward added to shop', 'success');
 }
 
 async function notifyAssigned(task, expiresOn) {
@@ -1640,31 +1655,39 @@ async function notifyAssigned(task, expiresOn) {
 
 // ── Task deletion helpers ──────────────────────────────────────
 async function deleteTask(taskId) {
-  // Remove from local state immediately for instant UI feedback
   const p = ps(viewingProfile);
   p.assigned = (p.assigned||[]).filter(t=>t.id!==taskId);
   Object.keys(p.days||{}).forEach(dk=>{ if(p.days[dk].tasks) p.days[dk].tasks = p.days[dk].tasks.filter(t=>t.id!==taskId); });
   Object.keys(p.monthly||{}).forEach(mk=>{ p.monthly[mk] = (p.monthly[mk]||[]).filter(t=>t.id!==taskId); });
   p.repeating = (p.repeating||[]).filter(t=>t.id!==taskId);
   renderTracker();
-  // Persist to DB then reload to confirm
+  toast('🗑 Task deleted', 'info');
   try {
     await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body:JSON.stringify({ taskId, ownerProfile: viewingProfile }) });
     await loadFromServer();
-  } catch(e) { console.error('Delete failed:', e); }
+  } catch(e) { console.error('Delete failed:', e); toast('Delete failed', 'error'); }
 }
 
 async function deleteTaskFrom(taskId, fromDate) {
   const p = ps(viewingProfile);
   p.repeatingDeleted[taskId] = fromDate;
+  toast('🗑 Repeating task removed', 'info');
   try {
     await fetch('/api/task/delete-from', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ taskId, fromDate }) });
   } catch(e) { console.error('Delete-from failed:', e); }
   renderTracker();
 }
 
-// ── Connect / Partner requests ─────────────────────────────────
+// ── Toast notifications ────────────────────────────────────────
+function toast(message, type='info', duration=2800) {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), duration + 300);
+}
 function openConnect() {
   document.getElementById('myConnectCode').textContent = currentUser.connectCode || '—————';
   document.getElementById('partnerCodeInput').value = '';
@@ -1683,18 +1706,23 @@ async function sendPartnerRequest() {
     const res = await fetch('/api/partner/request', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ connectCode: code }) });
     const data = await res.json();
     if (res.ok) {
-      msg.style.color='#6abf6a'; msg.textContent='✓ ' + data.message;
+      toast('✓ ' + data.message, 'success');
       document.getElementById('partnerCodeInput').value = '';
+      closeConnect();
     } else {
-      msg.style.color='#e06060'; msg.textContent=data.error||'Something went wrong';
+      toast(data.error || 'Something went wrong', 'error');
     }
-  } catch(e) { msg.style.color='#e06060'; msg.textContent='Connection error'; }
+  } catch(e) { toast('Connection error', 'error'); }
 }
 
 async function respondToRequest(requestId, action) {
   try {
     const res = await fetch('/api/partner/respond', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ requestId, action }) });
-    if (res.ok) await bootApp();
+    if (res.ok) {
+      const messages = { accept: '🎉 Partner accepted!', decline: 'Request declined', block: 'User blocked' };
+      toast(messages[action] || 'Done', action === 'accept' ? 'success' : 'info');
+      await bootApp();
+    }
   } catch(e) { console.error('Respond error:', e); }
 }
 
@@ -1974,6 +2002,7 @@ async function approveProof() {
   });
   closeProofModal();
   onApprove();
+  toast('✓ Proof approved — task complete!', 'success');
   scheduleSave();
   renderTracker();
 }
@@ -1997,6 +2026,7 @@ async function rejectProof() {
   });
   closeProofModal();
   if (onReject) onReject();
+  toast('✗ Proof rejected', 'info');
   scheduleSave();
   renderTracker();
 }
