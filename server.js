@@ -418,8 +418,14 @@ async function migrateFromJson(state, dadUser, ggUser, partnershipId) {
 
     // Inventory
     for (const inv of (p.inventory || [])) {
+      // Check if referenced shop item exists to avoid FK violation
+      let shopItemId = null;
+      if (inv.rewardId) {
+        const check = await db.query(`SELECT id FROM shop_items WHERE id=$1`, [inv.rewardId]);
+        if (check.rows.length) shopItemId = inv.rewardId;
+      }
       await db.query(`INSERT INTO inventory (id,shop_item_id,shop_item_name,shop_item_desc,cost,owner_id,redeemed_by,redeemed_at,fulfilled,fulfilled_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,
-        [inv.id||uid(), inv.rewardId||null, inv.name, inv.desc||null, inv.cost,
+        [inv.id||uid(), shopItemId, inv.name, inv.desc||null, inv.cost,
          inv.fromUserId === 'dad' ? dadUser.id : ggUser.id,
          user.id, new Date(inv.redeemedAt||Date.now()),
          inv.fulfilled||false, inv.fulfilledAt ? new Date(inv.fulfilledAt) : null]);
