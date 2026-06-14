@@ -9,7 +9,7 @@ const HTML_FILE  = path.join(__dirname, 'index.html');
 const PASSWORD   = process.env.APP_PASSWORD || 'interesting';
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
-console.log('Server v8 starting — photo proof support');
+console.log('Server v9 starting — credentials fix');
 
 // ── R2 / S3 storage ────────────────────────────────────────────
 const R2_ENDPOINT   = process.env.R2_ENDPOINT || '';

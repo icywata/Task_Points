@@ -1,6 +1,6 @@
 {
   "name": "task-points-tracker",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Shared task points tracker",
   "main": "server.js",
   "scripts": {
