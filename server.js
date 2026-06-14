@@ -8,7 +8,7 @@ const PORT       = process.env.PORT || 3000;
 const HTML_FILE  = path.join(__dirname, 'index.html');
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
-console.log('Server v11 starting — connect codes + cleanup');
+console.log('Server v12 starting — album fix, task edit proof, change password');
 
 // ── Password hashing ───────────────────────────────────────────
 function hashPassword(p) {
@@ -637,7 +637,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Serve HTML ─────────────────────────────────────────────
-  if (req.method === 'GET' && (url === '/' || url === '/index.html')) {
+  // Serve index.html for root and any frontend routes (SPA)
+  if (req.method === 'GET' && (url === '/' || url === '/index.html' || url.startsWith('/signup') || url.startsWith('/login') || url.startsWith('/reset'))) {
     fs.readFile(HTML_FILE, (err, data) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html' });
