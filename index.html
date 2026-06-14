@@ -179,7 +179,7 @@
   .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;overflow-y:auto;flex:1}
   .album-item{position:relative;aspect-ratio:1;border-radius:var(--radius-lg);overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .15s}
   .album-item:hover{border-color:var(--accent-mid)}
-  .album-item img{width:100%;height:100%;object-fit:cover}
+  .album-item img{width:100%;height:100%;object-fit:cover;cursor:pointer}
   .album-item-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);font-size:10px;color:#fff;padding:4px 6px;font-weight:600}
   .album-empty{text-align:center;color:#666;font-size:14px;padding:3rem;grid-column:1/-1}
 
@@ -2848,13 +2848,17 @@ async function openAlbum() {
         ? (currentUser.nickname || 'You')
         : (currentUser.partnerNickname || 'Partner');
       el.innerHTML = `
-        <img src="/api/proof/thumb?key=${encodeURIComponent(item.key)}" alt="${esc(item.taskName)}" onerror="this.parentElement.style.display='none'"/>
+        <img class="album-thumb" src="/api/proof/thumb?key=${encodeURIComponent(item.key)}" alt="${esc(item.taskName)}" onerror="this.parentElement.style.display='none'"/>
         <div class="album-item-name">${esc(item.taskName)}</div>
         <div class="album-item-meta">${esc(uploaderName)}</div>
         <div class="album-item-actions">
           <button class="album-save-btn" data-key="${esc(item.key)}">Save to device</button>
           <button class="album-remove-btn" data-key="${esc(item.key)}">Remove</button>
         </div>`;
+      // Click image to view full size
+      el.querySelector('.album-thumb').onclick = () => {
+        openProofModal(item.key, false, { proof: { key: item.key } }, () => {}, () => {}, true);
+      };
       el.querySelector('.album-save-btn').onclick = () => downloadProof(item.key);
       el.querySelector('.album-remove-btn').onclick = async () => {
         await fetch('/api/proof/decide', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
