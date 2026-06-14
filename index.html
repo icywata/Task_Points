@@ -2065,6 +2065,7 @@ function toast(message, type='info', duration=2800) {
 let editingRewardId = null;
 
 function openRewardEdit(item) {
+  console.log('openRewardEdit called', item);
   editingRewardId = item.id;
   document.getElementById('editRewardName').value = item.name || '';
   document.getElementById('editRewardDesc').value = item.desc || '';
@@ -2075,7 +2076,10 @@ function openRewardEdit(item) {
     sel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
   }
   sel.value = item.visibleTo || '';
-  document.getElementById('shopEditModal').classList.remove('hidden');
+  const modal = document.getElementById('shopEditModal');
+  console.log('shopEditModal element:', modal);
+  if (!modal) { console.error('shopEditModal not found!'); return; }
+  modal.classList.remove('hidden');
   document.getElementById('editRewardName').focus();
 }
 
