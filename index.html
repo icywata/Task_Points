@@ -100,6 +100,27 @@
   .login-logo svg{color:var(--accent-mid);width:28px;height:28px}
   .login-title{font-size:22px;font-weight:700;color:var(--text-primary);text-align:center;letter-spacing:-.3px}
   .login-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-top:8px}
+
+  /* ── Signup / verify screens ── */
+  #signupScreen,#verifyScreen{position:fixed;inset:0;background:var(--bg-page);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;overflow-y:auto}
+  #signupScreen.hidden,#verifyScreen.hidden{display:none}
+  .signup-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem 1.75rem;width:100%;max-width:400px;display:flex;flex-direction:column;gap:1rem}
+  .signup-logo{width:48px;height:48px;border-radius:50%;background:var(--accent-bg);border:2px solid var(--accent-mid);display:flex;align-items:center;justify-content:center;margin:0 auto}
+  .signup-logo svg{color:var(--accent-mid);width:22px;height:22px}
+  .signup-title{font-size:20px;font-weight:700;color:var(--text-primary);text-align:center;letter-spacing:-.3px}
+  .signup-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-top:-6px}
+  .signup-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .signup-field{display:flex;flex-direction:column;gap:5px}
+  .signup-field label{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}
+  .signup-field input,.signup-field select{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;transition:border-color .15s}
+  .signup-field input:focus,.signup-field select:focus{border-color:var(--accent-mid)}
+  .signup-field input::placeholder{color:var(--text-muted)}
+  .signup-switch{font-size:13px;color:var(--text-muted);text-align:center}
+  .signup-switch a{color:var(--accent-mid);cursor:pointer;text-decoration:none;font-weight:600}
+  .signup-switch a:hover{text-decoration:underline}
+  .signup-error{font-size:12px;color:#e06060;text-align:center;min-height:16px}
+  .verify-code-input{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:28px;padding:12px;outline:none;text-align:center;letter-spacing:10px;font-weight:700;transition:border-color .15s}
+  .verify-code-input:focus{border-color:var(--accent-mid)}
   .login-field{width:100%;display:flex;flex-direction:column;gap:6px}
   .login-field label{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}
   .login-field input{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:15px;padding:11px 14px;outline:none;transition:border-color .15s}
@@ -478,6 +499,124 @@
     </div>
     <div class="login-error" id="loginError"></div>
     <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="signup-switch" style="display:flex;justify-content:space-between">
+      <span><a onclick="showForgotPassword()">Forgot password?</a></span>
+      <span>No account? <a onclick="showSignup()">Sign up</a></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Forgot password screen ── -->
+<div id="forgotScreen" class="hidden">
+  <div class="signup-card">
+    <div class="signup-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <div class="signup-title">Reset password</div>
+    <div class="signup-sub">Enter your email and we'll send a reset code</div>
+    <div class="signup-field">
+      <label>Email</label>
+      <input type="email" id="forgotEmail" placeholder="your@email.com" autocomplete="email"/>
+    </div>
+    <div class="signup-error" id="forgotError"></div>
+    <button class="login-btn" onclick="doForgotPassword()">Send reset code</button>
+    <div class="signup-switch"><a onclick="showLogin()">Back to sign in</a></div>
+  </div>
+</div>
+
+<!-- ── Reset password screen ── -->
+<div id="resetScreen" class="hidden">
+  <div class="signup-card">
+    <div class="signup-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+    <div class="signup-title">Set new password</div>
+    <div class="signup-sub" id="resetSubtitle">Enter the code we sent to your email</div>
+    <div class="signup-field">
+      <label>Reset code</label>
+      <input type="text" class="verify-code-input" id="resetCode" placeholder="000000" maxlength="6" inputmode="numeric"/>
+    </div>
+    <div class="signup-field">
+      <label>New password</label>
+      <input type="password" id="resetPassword" placeholder="At least 8 characters" autocomplete="new-password"/>
+    </div>
+    <div class="signup-field">
+      <label>Confirm password</label>
+      <input type="password" id="resetPasswordConfirm" placeholder="Repeat password" autocomplete="new-password"/>
+    </div>
+    <div class="signup-error" id="resetError"></div>
+    <button class="login-btn" onclick="doResetPassword()">Set new password</button>
+    <div class="signup-switch"><a onclick="resendResetCode()">Resend code</a> · <a onclick="showLogin()">Back to sign in</a></div>
+  </div>
+</div>
+
+<!-- ── Signup screen ── -->
+<div id="signupScreen" class="hidden">
+  <div class="signup-card">
+    <div class="signup-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    </div>
+    <div class="signup-title">Create your account</div>
+    <div class="signup-sub">Free to join — takes 30 seconds</div>
+    <div class="signup-row">
+      <div class="signup-field">
+        <label>First name</label>
+        <input type="text" id="signupFirstName" placeholder="First name" maxlength="40" autocomplete="given-name"/>
+      </div>
+      <div class="signup-field">
+        <label>Username</label>
+        <input type="text" id="signupUsername" placeholder="e.g. daddy99" maxlength="30"/>
+      </div>
+    </div>
+    <div class="signup-field">
+      <label>Email</label>
+      <input type="email" id="signupEmail" placeholder="your@email.com" autocomplete="email"/>
+    </div>
+    <div class="signup-field">
+      <label>Password</label>
+      <input type="password" id="signupPassword" placeholder="At least 8 characters" autocomplete="new-password"/>
+    </div>
+    <div class="signup-field">
+      <label>Your role</label>
+      <select id="signupRole">
+        <option value="">Select a role…</option>
+        <option>Dominant</option><option>Domme</option><option>Daddy</option><option>Mommy</option>
+        <option>Master</option><option>Mistress</option><option>Owner</option><option>Caregiver</option>
+        <option>Rigger</option><option>Sadist</option><option>Switch</option><option>Submissive</option>
+        <option>Sub</option><option>Slave</option><option>Little</option><option>Babygirl</option>
+        <option>Babyboy</option><option>Pet</option><option>Rope Bunny</option><option>Masochist</option>
+        <option>Vanilla</option><option>Curious/Exploring</option>
+      </select>
+    </div>
+    <div class="signup-error" id="signupError"></div>
+    <button class="login-btn" onclick="doSignup()">Create Account</button>
+    <div class="signup-switch">Already have an account? <a onclick="showLogin()">Sign in</a></div>
+  </div>
+</div>
+
+<!-- ── Verify email screen ── -->
+<div id="verifyScreen" class="hidden">
+  <div class="signup-card">
+    <div class="signup-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+      </svg>
+    </div>
+    <div class="signup-title">Check your email</div>
+    <div class="signup-sub" id="verifySubtitle">We sent a 6-digit code to your email</div>
+    <div class="signup-field">
+      <label>Verification code</label>
+      <input type="text" class="verify-code-input" id="verifyCode" placeholder="000000" maxlength="6" inputmode="numeric"/>
+    </div>
+    <div class="signup-error" id="verifyError"></div>
+    <button class="login-btn" onclick="doVerify()">Verify Email</button>
+    <div class="signup-switch"><a onclick="resendVerification()">Resend code</a></div>
   </div>
 </div>
 
@@ -686,6 +825,188 @@
 </div>
 
 <script>
+function showForgotPassword() {
+  ['loginScreen','signupScreen','verifyScreen','resetScreen'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('forgotScreen').classList.remove('hidden');
+  document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value || '';
+  document.getElementById('forgotError').textContent = '';
+}
+function showResetPassword(email) {
+  ['loginScreen','signupScreen','verifyScreen','forgotScreen'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('resetScreen').classList.remove('hidden');
+  document.getElementById('resetSubtitle').textContent = `Enter the 6-digit code sent to ${email}`;
+  document.getElementById('resetCode').value = '';
+  document.getElementById('resetPassword').value = '';
+  document.getElementById('resetPasswordConfirm').value = '';
+  document.getElementById('resetError').textContent = '';
+  document.getElementById('resetCode').focus();
+}
+
+let pendingResetEmail = '';
+
+async function doForgotPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const errEl = document.getElementById('forgotError');
+  errEl.textContent = '';
+  if (!email) { errEl.textContent = 'Please enter your email'; return; }
+  const btn = document.querySelector('#forgotScreen .login-btn');
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      pendingResetEmail = email;
+      showResetPassword(email);
+    } else {
+      errEl.textContent = data.error || 'Something went wrong';
+    }
+  } catch(e) { errEl.textContent = 'Connection error'; }
+  btn.textContent = 'Send reset code'; btn.disabled = false;
+}
+
+async function doResetPassword() {
+  const code     = document.getElementById('resetCode').value.trim();
+  const password = document.getElementById('resetPassword').value;
+  const confirm  = document.getElementById('resetPasswordConfirm').value;
+  const errEl    = document.getElementById('resetError');
+  errEl.textContent = '';
+  if (code.length !== 6) { errEl.textContent = 'Please enter the 6-digit code'; return; }
+  if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters'; return; }
+  if (password !== confirm) { errEl.textContent = 'Passwords do not match'; return; }
+  const btn = document.querySelector('#resetScreen .login-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingResetEmail, code, password })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showLogin();
+      document.getElementById('loginEmail').value = pendingResetEmail;
+      pendingResetEmail = '';
+      toast('✓ Password reset! Sign in with your new password.', 'success');
+    } else {
+      errEl.textContent = data.error || 'Invalid or expired code';
+    }
+  } catch(e) { errEl.textContent = 'Connection error'; }
+  btn.textContent = 'Set new password'; btn.disabled = false;
+}
+
+async function resendResetCode() {
+  if (!pendingResetEmail) return;
+  try {
+    await fetch('/api/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingResetEmail })
+    });
+    toast('New reset code sent to ' + pendingResetEmail, 'info');
+  } catch(e) { toast('Could not resend', 'error'); }
+}
+
+// ── Screen switching ───────────────────────────────────────────
+function showLogin() {
+  ['signupScreen','verifyScreen','forgotScreen','resetScreen'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('loginScreen').classList.remove('hidden');
+}
+function showSignup() {
+  ['loginScreen','verifyScreen','forgotScreen','resetScreen'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('signupScreen').classList.remove('hidden');
+}
+function showVerify(email) {
+  ['loginScreen','signupScreen','forgotScreen','resetScreen'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('verifyScreen').classList.remove('hidden');
+  document.getElementById('verifySubtitle').textContent = `We sent a 6-digit code to ${email}`;
+  document.getElementById('verifyCode').value = '';
+  document.getElementById('verifyCode').focus();
+}
+
+// ── Signup ─────────────────────────────────────────────────────
+let pendingVerifyEmail = '';
+
+async function doSignup() {
+  const firstName = document.getElementById('signupFirstName').value.trim();
+  const username  = document.getElementById('signupUsername').value.trim().toLowerCase();
+  const email     = document.getElementById('signupEmail').value.trim();
+  const password  = document.getElementById('signupPassword').value;
+  const role      = document.getElementById('signupRole').value;
+  const errEl     = document.getElementById('signupError');
+  errEl.textContent = '';
+
+  if (!firstName) { errEl.textContent = 'Please enter your first name'; return; }
+  if (!username || username.length < 3) { errEl.textContent = 'Username must be at least 3 characters'; return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { errEl.textContent = 'Username can only contain letters, numbers and underscores'; return; }
+  if (!email) { errEl.textContent = 'Please enter your email'; return; }
+  if (password.length < 8) { errEl.textContent = 'Password must be at least 8 characters'; return; }
+  if (!role) { errEl.textContent = 'Please select your role'; return; }
+
+  const btn = document.querySelector('#signupScreen .login-btn');
+  btn.textContent = 'Creating account…'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName, username, email, password, role })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      pendingVerifyEmail = email;
+      showVerify(email);
+    } else {
+      errEl.textContent = data.error || 'Something went wrong';
+    }
+  } catch(e) {
+    errEl.textContent = 'Connection error — please try again';
+  }
+  btn.textContent = 'Create Account'; btn.disabled = false;
+}
+
+async function doVerify() {
+  const code  = document.getElementById('verifyCode').value.trim();
+  const errEl = document.getElementById('verifyError');
+  errEl.textContent = '';
+  if (code.length !== 6) { errEl.textContent = 'Please enter the 6-digit code'; return; }
+  const btn = document.querySelector('#verifyScreen .login-btn');
+  btn.textContent = 'Verifying…'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingVerifyEmail, code })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showLogin();
+      document.getElementById('loginEmail').value = pendingVerifyEmail;
+      toast('✓ Email verified! Sign in below.', 'success');
+      pendingVerifyEmail = '';
+    } else {
+      errEl.textContent = data.error || 'Invalid code';
+    }
+  } catch(e) {
+    errEl.textContent = 'Connection error';
+  }
+  btn.textContent = 'Verify Email'; btn.disabled = false;
+}
+
+async function resendVerification() {
+  if (!pendingVerifyEmail) return;
+  try {
+    await fetch('/api/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pendingVerifyEmail })
+    });
+    toast('Code resent to ' + pendingVerifyEmail, 'info');
+  } catch(e) { toast('Could not resend', 'error'); }
+}
+
 // ── Auth & session ─────────────────────────────────────────────
 let currentUser = null; // { userId, firstName, lastName, nickname, role, email, partnerId, partnerNickname, partnerRole }
 
@@ -706,6 +1027,10 @@ async function doLogin() {
     const data = await res.json();
     if (res.ok) {
       await bootApp();
+    } else if (data.unverified) {
+      pendingVerifyEmail = email;
+      showVerify(email);
+      toast('Please verify your email to continue', 'info');
     } else {
       showLoginError(data.error || 'Invalid email or password');
     }

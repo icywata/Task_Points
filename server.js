@@ -125,6 +125,14 @@ async function createSchema() {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      user_id TEXT,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS partner_requests (
       id TEXT PRIMARY KEY,
       from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -287,6 +295,16 @@ function json(res, data, status = 200) {
 }
 
 // ── User helpers ───────────────────────────────────────────────
+async function generateUniqueConnectCode() {
+  let code, exists = true;
+  while (exists) {
+    code = Math.floor(10000 + Math.random() * 90000).toString();
+    const r = await db.query(`SELECT id FROM users WHERE connect_code=$1`, [code]);
+    exists = r.rows.length > 0;
+  }
+  return code;
+}
+
 async function getUserById(id) {
   const r = await db.query('SELECT * FROM users WHERE id=$1', [id]);
   return r.rows[0] || null;
@@ -653,12 +671,140 @@ const server = http.createServer(async (req, res) => {
 
       // Clear old sessions so everyone logs in fresh
       await db.query(`DELETE FROM sessions`);
+      // Mark bootstrapped users as verified
+      await db.query(`UPDATE users SET email_verified=TRUE WHERE id IN ($1,$2)`, [dadId, ggId]);
 
       json(res, { ok: true, message: 'Migration complete! All data preserved. Please log in again.' });
     } catch(e) {
       console.error('Migration error:', e);
       json(res, { error: e.message }, 500);
     }
+    return;
+  }
+
+  // ── Forgot password ────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/forgot-password') {
+    try {
+      const { email } = await parseBody(req);
+      const user = await getUserByEmail(email);
+      // Always respond OK to prevent email enumeration
+      if (user) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = new Date(Date.now() + 30 * 60 * 1000);
+        await db.query(`DELETE FROM email_verifications WHERE LOWER(email)=LOWER($1)`, [email]);
+        await db.query(`INSERT INTO email_verifications (id,email,code,user_id,expires_at) VALUES ($1,$2,$3,$4,$5)`,
+          [uid(), email.toLowerCase(), code, user.id, expires]);
+        await sendEmail(email, `Your KinkPoints password reset code: ${code}`,
+          `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+            <h2 style="color:#d4537e;margin-bottom:1rem">Password reset</h2>
+            <p style="color:#b8829e;margin-bottom:1.5rem">Use this code to reset your password:</p>
+            <div style="background:#2a1c27;border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:1.5rem">
+              <div style="font-size:36px;font-weight:700;color:#d4537e;letter-spacing:10px">${code}</div>
+            </div>
+            <p style="color:#7a5068;font-size:13px">This code expires in 30 minutes. If you didn't request a reset, ignore this email.</p>
+          </div>`);
+      }
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Reset password ─────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/reset-password') {
+    try {
+      const { email, code, password } = await parseBody(req);
+      if (password.length < 8) { json(res, { error: 'Password must be at least 8 characters' }, 400); return; }
+      const r = await db.query(`SELECT * FROM email_verifications WHERE LOWER(email)=LOWER($1) AND code=$2 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`, [email, code]);
+      if (!r.rows.length) { json(res, { error: 'Invalid or expired code' }, 400); return; }
+      const verification = r.rows[0];
+      await db.query(`UPDATE users SET password_hash=$1, email_verified=TRUE WHERE id=$2`, [hashPassword(password), verification.user_id]);
+      await db.query(`DELETE FROM email_verifications WHERE LOWER(email)=LOWER($1)`, [email]);
+      // Invalidate all existing sessions for security
+      await db.query(`DELETE FROM sessions WHERE user_id=$1`, [verification.user_id]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Signup ─────────────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/signup') {
+    try {
+      const { firstName, username, email, password, role } = await parseBody(req);
+      // Validate
+      if (!firstName || !username || !email || !password || !role) { json(res, { error: 'All fields required' }, 400); return; }
+      if (password.length < 8) { json(res, { error: 'Password must be at least 8 characters' }, 400); return; }
+      if (!/^[a-z0-9_]+$/.test(username)) { json(res, { error: 'Username can only contain letters, numbers and underscores' }, 400); return; }
+      // Check email unique
+      const existingEmail = await db.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [email]);
+      if (existingEmail.rows.length) { json(res, { error: 'An account with that email already exists' }, 409); return; }
+      // Check username unique
+      const existingUser = await db.query(`SELECT id FROM users WHERE LOWER(username)=LOWER($1)`, [username]);
+      if (existingUser.rows.length) { json(res, { error: 'That username is already taken' }, 409); return; }
+      // Generate connect code
+      const connectCode = await generateUniqueConnectCode();
+      // Create user (unverified)
+      const userId = uid() + uid(); // longer ID for real users
+      await db.query(`INSERT INTO users (id,email,password_hash,username,first_name,nickname,role,notification_email,connect_code,email_verified)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,FALSE)`,
+        [userId, email.toLowerCase(), hashPassword(password), username, firstName, username, role, email.toLowerCase(), connectCode]);
+      // Generate verification code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expires = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+      await db.query(`INSERT INTO email_verifications (id,email,code,user_id,expires_at) VALUES ($1,$2,$3,$4,$5)`,
+        [uid(), email.toLowerCase(), code, userId, expires]);
+      // Send verification email
+      await sendEmail(email, `Your KinkPoints verification code: ${code}`,
+        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+          <h2 style="color:#d4537e;margin-bottom:1rem">Welcome to KinkPoints, ${firstName}!</h2>
+          <p style="color:#b8829e;margin-bottom:1.5rem">Enter this code to verify your email address:</p>
+          <div style="background:#2a1c27;border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:1.5rem">
+            <div style="font-size:36px;font-weight:700;color:#d4537e;letter-spacing:10px">${code}</div>
+          </div>
+          <p style="color:#7a5068;font-size:13px">This code expires in 30 minutes. If you didn't create a KinkPoints account, ignore this email.</p>
+        </div>`);
+      json(res, { ok: true });
+    } catch(e) { console.error('Signup error:', e); json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Verify email ───────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/verify-email') {
+    try {
+      const { email, code } = await parseBody(req);
+      const r = await db.query(`SELECT * FROM email_verifications WHERE LOWER(email)=LOWER($1) AND code=$2 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`, [email, code]);
+      if (!r.rows.length) { json(res, { error: 'Invalid or expired code' }, 400); return; }
+      const verification = r.rows[0];
+      // Mark user verified
+      await db.query(`UPDATE users SET email_verified=TRUE WHERE id=$1`, [verification.user_id]);
+      // Clean up codes
+      await db.query(`DELETE FROM email_verifications WHERE email=LOWER($1)`, [email]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Resend verification ────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/resend-verification') {
+    try {
+      const { email } = await parseBody(req);
+      const user = await getUserByEmail(email);
+      if (!user) { json(res, { error: 'Email not found' }, 404); return; }
+      if (user.email_verified) { json(res, { error: 'Email already verified' }, 400); return; }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expires = new Date(Date.now() + 30 * 60 * 1000);
+      await db.query(`DELETE FROM email_verifications WHERE email=LOWER($1)`, [email]);
+      await db.query(`INSERT INTO email_verifications (id,email,code,user_id,expires_at) VALUES ($1,$2,$3,$4,$5)`,
+        [uid(), email.toLowerCase(), code, user.id, expires]);
+      await sendEmail(email, `Your new KinkPoints verification code: ${code}`,
+        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+          <h2 style="color:#d4537e;margin-bottom:1rem">New verification code</h2>
+          <div style="background:#2a1c27;border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:1.5rem">
+            <div style="font-size:36px;font-weight:700;color:#d4537e;letter-spacing:10px">${code}</div>
+          </div>
+          <p style="color:#7a5068;font-size:13px">Expires in 30 minutes.</p>
+        </div>`);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
     return;
   }
 
@@ -670,6 +816,7 @@ const server = http.createServer(async (req, res) => {
       const user = await getUserByEmail(email);
       if (!user) { console.log('User not found'); json(res, { error: 'Invalid email or password' }, 401); return; }
       if (user.password_hash !== hashPassword(password)) { console.log('Wrong password'); json(res, { error: 'Invalid email or password' }, 401); return; }
+      if (!user.email_verified) { json(res, { error: 'Please verify your email before signing in', unverified: true }, 403); return; }
       const token = await createSession(user.id);
       console.log(`Login success: ${user.id}`);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': setCookieHeader(token) });
