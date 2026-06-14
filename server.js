@@ -1078,6 +1078,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Debug task ownership ───────────────────────────────────
+  if (req.method === 'GET' && url === '/api/debug/tasks') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const r = await db.query(`SELECT id, name, type, owner_id, created_by, active FROM tasks WHERE owner_id=$1 OR created_by=$1 ORDER BY created_at DESC LIMIT 20`, [userId]);
+      json(res, { userId, tasks: r.rows });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   // ── Delete task ────────────────────────────────────────────
   if (req.method === 'POST' && url === '/api/task/delete') {
     const userId = await requireAuth(req);
