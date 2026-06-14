@@ -100,6 +100,25 @@ async function createSchema() {
       email_verified BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+  `);
+  // Add columns that may not exist yet on older installs
+  const alterCols = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS icon TEXT DEFAULT 'heart'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'rose'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE`,
+  ];
+  for (const sql of alterCols) {
+    try { await db.query(sql); } catch(e) { /* column already exists */ }
+  }
+  // Add unique constraint on username if not exists
+  try {
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users(username) WHERE username IS NOT NULL`);
+  } catch(e) {}
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -494,6 +513,7 @@ const BOOTSTRAP_HTML = `<!DOCTYPE html>
       <div class="field"><label>First Name</label><input type="text" id="dadFirstName" placeholder="First name"/></div>
       <div class="field"><label>Last Name</label><input type="text" id="dadLastName" placeholder="Last name"/></div>
     </div>
+    <div class="field"><label>Username</label><input type="text" id="dadUsername" value="mcduffro" placeholder="username"/></div>
     <div class="field"><label>Nickname</label><input type="text" id="dadNickname" value="Daddy"/></div>
     <div class="field"><label>Role</label>
       <select id="dadRole">
@@ -510,6 +530,7 @@ const BOOTSTRAP_HTML = `<!DOCTYPE html>
       <div class="field"><label>First Name</label><input type="text" id="ggFirstName" placeholder="First name"/></div>
       <div class="field"><label>Last Name</label><input type="text" id="ggLastName" placeholder="Last name"/></div>
     </div>
+    <div class="field"><label>Username</label><input type="text" id="ggUsername" value="lilyroh99" placeholder="username"/></div>
     <div class="field"><label>Nickname</label><input type="text" id="ggNickname" value="Good Girl"/></div>
     <div class="field"><label>Role</label>
       <select id="ggRole">
@@ -526,8 +547,8 @@ const BOOTSTRAP_HTML = `<!DOCTYPE html>
 <script>
 async function migrate() {
   const adminKey=document.getElementById('adminKey').value.trim();
-  const dad={ firstName:document.getElementById('dadFirstName').value.trim(), lastName:document.getElementById('dadLastName').value.trim(), nickname:document.getElementById('dadNickname').value.trim(), role:document.getElementById('dadRole').value, email:document.getElementById('dadEmail').value.trim(), password:document.getElementById('dadPassword').value };
-  const gg={ firstName:document.getElementById('ggFirstName').value.trim(), lastName:document.getElementById('ggLastName').value.trim(), nickname:document.getElementById('ggNickname').value.trim(), role:document.getElementById('ggRole').value, email:document.getElementById('ggEmail').value.trim(), password:document.getElementById('ggPassword').value };
+  const dad={ firstName:document.getElementById('dadFirstName').value.trim(), lastName:document.getElementById('dadLastName').value.trim(), username:document.getElementById('dadUsername').value.trim().toLowerCase(), nickname:document.getElementById('dadNickname').value.trim(), role:document.getElementById('dadRole').value, email:document.getElementById('dadEmail').value.trim(), password:document.getElementById('dadPassword').value };
+  const gg={ firstName:document.getElementById('ggFirstName').value.trim(), lastName:document.getElementById('ggLastName').value.trim(), username:document.getElementById('ggUsername').value.trim().toLowerCase(), nickname:document.getElementById('ggNickname').value.trim(), role:document.getElementById('ggRole').value, email:document.getElementById('ggEmail').value.trim(), password:document.getElementById('ggPassword').value };
   if(!adminKey||!dad.email||!dad.password||!gg.email||!gg.password){showResult('Please fill in all required fields',false);return;}
   const btn=document.querySelector('.btn');
   btn.textContent='Migrating…';btn.disabled=true;
