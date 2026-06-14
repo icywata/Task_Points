@@ -1028,18 +1028,26 @@ const server = http.createServer(async (req, res) => {
       for (const pship of partnerships.rows) {
         const partnerId = pship.partner_id;
 
-        // Points earned on tasks visible to this partner or everyone
-        // Combines regular task_completions AND monthly_completions
-        const earned = await db.query(`
+        // Points from regular completions (daily, repeating, assigned)
+        const earnedRegular = await db.query(`
           SELECT COALESCE(SUM(t.points), 0) as total
-          FROM (
-            SELECT tc.task_id FROM task_completions tc WHERE tc.completed_by = $1
-            UNION ALL
-            SELECT mc.task_id FROM monthly_completions mc WHERE mc.completed_by = $1
-          ) completions
-          JOIN tasks t ON t.id = completions.task_id
-          WHERE (t.visible_to = $2 OR t.visible_to IS NULL)
+          FROM task_completions tc
+          JOIN tasks t ON t.id = tc.task_id
+          WHERE tc.completed_by = $1
+            AND t.type != 'monthly'
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [userId, partnerId]);
+
+        // Points from monthly completions (one per month per task)
+        const earnedMonthly = await db.query(`
+          SELECT COALESCE(SUM(t.points), 0) as total
+          FROM monthly_completions mc
+          JOIN tasks t ON t.id = mc.task_id
+          WHERE mc.completed_by = $1
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+        `, [userId, partnerId]);
+
+        const earnedTotal = parseInt(earnedRegular.rows[0].total) + parseInt(earnedMonthly.rows[0].total);
 
         // Points spent on items from this partner's shop
         const spent = await db.query(`
@@ -1049,9 +1057,9 @@ const server = http.createServer(async (req, res) => {
         `, [userId, partnerId]);
 
         balances[partnerId] = {
-          earned: parseInt(earned.rows[0].total),
+          earned: earnedTotal,
           spent: parseInt(spent.rows[0].total),
-          balance: parseInt(earned.rows[0].total) - parseInt(spent.rows[0].total)
+          balance: earnedTotal - parseInt(spent.rows[0].total)
         };
       }
       json(res, balances);
@@ -1298,25 +1306,32 @@ const server = http.createServer(async (req, res) => {
       if (partnership) {
         const partnerId = partnership.partnerId;
 
-        const theirEarned = await db.query(`
+        const theirEarnedRegular = await db.query(`
           SELECT COALESCE(SUM(t.points), 0) as total
-          FROM (
-            SELECT tc.task_id FROM task_completions tc WHERE tc.completed_by = $1
-            UNION ALL
-            SELECT mc.task_id FROM monthly_completions mc WHERE mc.completed_by = $1
-          ) completions
-          JOIN tasks t ON t.id = completions.task_id
-          WHERE (t.visible_to = $2 OR t.visible_to IS NULL)
+          FROM task_completions tc
+          JOIN tasks t ON t.id = tc.task_id
+          WHERE tc.completed_by = $1
+            AND t.type != 'monthly'
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
         `, [partnerId, userId]);
+
+        const theirEarnedMonthly = await db.query(`
+          SELECT COALESCE(SUM(t.points), 0) as total
+          FROM monthly_completions mc
+          JOIN tasks t ON t.id = mc.task_id
+          WHERE mc.completed_by = $1
+            AND (t.visible_to = $2 OR t.visible_to IS NULL)
+        `, [partnerId, userId]);
+
+        const theirEarnedTotal = parseInt(theirEarnedRegular.rows[0].total) + parseInt(theirEarnedMonthly.rows[0].total);
 
         const theirSpent = await db.query(`
           SELECT COALESCE(SUM(i.cost), 0) as total
           FROM inventory i WHERE i.redeemed_by=$1 AND i.owner_id=$2
         `, [partnerId, userId]);
 
-        const te = parseInt(theirEarned.rows[0].total);
         const ts = parseInt(theirSpent.rows[0].total);
-        result._partnerBalances = { earned: te, spent: ts, balance: te - ts };
+        result._partnerBalances = { earned: theirEarnedTotal, spent: ts, balance: theirEarnedTotal - ts };
       }
 
       json(res, result);
