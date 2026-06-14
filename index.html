@@ -1927,7 +1927,7 @@ function renderShop() {
         el.className = 'shop-item';
         const scopeLabel = item.visibleTo === currentUser.partnerId
           ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>`
-          : `<span class="section-badge repeat" style="font-size:9px">Everyone</span>`;
+          : `<span class="section-badge repeat" style="font-size:9px">👁 Everyone</span>`;
         el.innerHTML = `
           <div class="shop-item-body">
             <div class="shop-item-name">${esc(item.name)}</div>
@@ -1988,15 +1988,15 @@ function renderShop() {
     const hr1 = document.createElement('hr'); hr1.className = 'divider';
     content.appendChild(hr1);
     const formDiv = document.createElement('div');
-    // Build visibility options for rewards
     let partnerOptions = '';
     if (currentUser.partnerId) {
+      // Partner first — default
       partnerOptions += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
     }
+    // Solo always available
     partnerOptions += `<option value="${currentUser.userId}">Solo (just me)</option>`;
-    if (currentUser.partnerId) {
-      partnerOptions += `<option value="">Everyone</option>`;
-    }
+    // Everyone only if multiple partners (for now just show if partnerId exists, will expand later)
+    // Hidden for single-partner users — no point showing "everyone" when there's only one person
     formDiv.innerHTML = `
       <div class="section-head">Add a reward to your shop</div>
       <div class="add-form">
@@ -2544,10 +2544,13 @@ function openRewardEdit(item) {
   document.getElementById('editRewardDesc').value = item.desc || '';
   document.getElementById('editRewardCost').value = item.cost || '';
   const sel = document.getElementById('editRewardVisibleTo');
-  sel.innerHTML = `<option value="">Everyone</option>`;
+  sel.innerHTML = '';
   if (currentUser.partnerId) {
     sel.innerHTML += `<option value="${currentUser.partnerId}">${esc(currentUser.partnerNickname||'Partner')} only</option>`;
   }
+  sel.innerHTML += `<option value="${currentUser.userId}">Solo (just me)</option>`;
+  // "Everyone" only shown for multi-partner accounts
+  // (future: when multiple partners are supported, add them all here)
   sel.value = item.visibleTo || '';
   const modal = document.getElementById('shopEditModal');
 
