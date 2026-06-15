@@ -116,6 +116,10 @@ async function createSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS connect_code TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS used_invite_code TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_invite_token TEXT`,
+    `ALTER TABLE partnerships ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ`,
+    `ALTER TABLE partnerships ADD COLUMN IF NOT EXISTS removed_by TEXT`,
+    `ALTER TABLE partnerships ADD COLUMN IF NOT EXISTS points_reset_at TIMESTAMPTZ`,
+    `ALTER TABLE partnerships ADD COLUMN IF NOT EXISTS removal_seen_by TEXT[]`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_test_user BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE inventory ADD COLUMN IF NOT EXISTS is_solo BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS is_solo BOOLEAN DEFAULT FALSE`,
@@ -1262,6 +1266,22 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
         WHERE pr.to_user_id=$1 AND pr.status='pending'
       `, [userId]);
 
+      // Check for unacknowledged removal from an ended partnership
+      const removalResult = await db.query(`
+        SELECT p.id, p.removed_by, p.ended_at,
+          CASE WHEN p.user_a_id=$1 THEN p.user_b_id ELSE p.user_a_id END as partner_id,
+          u.username as remover_username, u.nickname as remover_nickname
+        FROM partnerships p
+        JOIN users u ON u.id = p.removed_by
+        WHERE (p.user_a_id=$1 OR p.user_b_id=$1)
+          AND p.status='ended'
+          AND p.removed_by != $1
+          AND NOT ($1 = ANY(COALESCE(p.removal_seen_by,'{}')))
+        ORDER BY p.ended_at DESC LIMIT 1
+      `, [userId]);
+
+      const removal = removalResult.rows[0] || null;
+
       json(res, {
         userId: user.id,
         username: user.username,
@@ -1284,13 +1304,16 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
         partnerTheme: partnerData?.theme || null,
         partnerEmail: partnerData?.notification_email || null,
         pendingRequests: reqsResult.rows.map(r => ({
-          id: r.id,
-          fromUserId: r.from_user_id,
-          username: r.username,
-          nickname: r.nickname,
-          icon: r.icon,
-          createdAt: r.created_at
-        }))
+          id: r.id, fromUserId: r.from_user_id,
+          username: r.username, nickname: r.nickname,
+          icon: r.icon, createdAt: r.created_at
+        })),
+        removalNotification: removal ? {
+          partnershipId: removal.id,
+          removedBy: removal.remover_nickname || `@${removal.remover_username}`,
+          removedByUsername: removal.remover_username,
+          endedAt: removal.ended_at
+        } : null
       });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
@@ -1732,6 +1755,62 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     return;
   }
 
+  // ── Remove partner ─────────────────────────────────────────
+  if (req.method === 'POST' && url === '/api/partner/remove') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      await db.query(`UPDATE partnerships SET status='ended', ended_at=NOW(), removed_by=$1
+        WHERE (user_a_id=$1 OR user_b_id=$1) AND status='active'`, [userId]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Dismiss removal notification ───────────────────────────
+  if (req.method === 'POST' && url === '/api/partner/dismiss-removal') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      await db.query(`UPDATE partnerships SET removal_seen_by = array_append(COALESCE(removal_seen_by,'{}'), $1)
+        WHERE (user_a_id=$1 OR user_b_id=$1) AND status='ended'
+          AND NOT ($1 = ANY(COALESCE(removal_seen_by,'{}')))`, [userId]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Check re-partner history ───────────────────────────────
+  if (req.method === 'POST' && url === '/api/partner/history') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { partnerId } = await parseBody(req);
+      const r = await db.query(`SELECT p.* FROM partnerships p
+        WHERE (p.user_a_id=$1 OR p.user_b_id=$1) AND (p.user_a_id=$2 OR p.user_b_id=$2)
+          AND p.status='ended' ORDER BY p.ended_at DESC LIMIT 1`, [userId, partnerId]);
+      if (!r.rows.length) { json(res, { hasHistory: false }); return; }
+      const past = r.rows[0];
+      const e1 = await db.query(`SELECT COALESCE(SUM(t.points),0) as total FROM task_completions tc JOIN tasks t ON t.id=tc.task_id WHERE tc.completed_by=$1 AND (t.visible_to=$2 OR t.visible_to IS NULL) AND t.type!='monthly'`, [userId, partnerId]);
+      const e2 = await db.query(`SELECT COALESCE(SUM(t.points),0) as total FROM monthly_completions mc JOIN tasks t ON t.id=mc.task_id WHERE mc.completed_by=$1 AND (t.visible_to=$2 OR t.visible_to IS NULL)`, [userId, partnerId]);
+      json(res, { hasHistory: true, partnershipId: past.id, prevBalance: parseInt(e1.rows[0].total)+parseInt(e2.rows[0].total) });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Reinstate or reset points on re-partner ────────────────
+  if (req.method === 'POST' && url === '/api/partner/reinstate') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { partnershipId, resetPoints } = await parseBody(req);
+      const col = resetPoints ? `, points_reset_at=NOW()` : ``;
+      await db.query(`UPDATE partnerships SET status='active', ended_at=NULL, removed_by=NULL${col} WHERE id=$1`, [partnershipId]);
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   // ── Send partner request by connect code ──────────────────
   if (req.method === 'POST' && url === '/api/partner/request') {
     const userId = await requireAuth(req);
@@ -1769,22 +1848,35 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
       if (!reqResult.rows.length) { json(res, { error: 'Request not found' }, 404); return; }
       const partnerReq = reqResult.rows[0];
       if (action === 'accept') {
-        // Create partnership
-        const partnershipId = `${partnerReq.from_user_id}-${userId}-${uid()}`;
-        await db.query(`INSERT INTO partnerships (id,user_a_id,user_b_id,status,requested_by) VALUES ($1,$2,$3,'active',$4)
-          ON CONFLICT DO NOTHING`, [partnershipId, partnerReq.from_user_id, userId, partnerReq.from_user_id]);
-        await db.query(`UPDATE partner_requests SET status='accepted' WHERE id=$1`, [requestId]);
-        // Notify requester by email
-        const requester = await getUserById(partnerReq.from_user_id);
-        const accepter = await getUserById(userId);
-        if (requester?.notification_email) {
-          await sendEmail(requester.notification_email, `🎉 ${accepter.nickname || accepter.username} accepted your partner request!`,
-            `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
-              <h2 style="color:#d4537e;margin-bottom:1rem">Partner request accepted!</h2>
-              <p style="color:#b8829e;">@${accepter.username || accepter.nickname} has accepted your partner request on KinkPoints. Log in to get started!</p>
-            </div>`);
+        // Check for existing ended partnership between these two users
+        const existing = await db.query(`SELECT id FROM partnerships
+          WHERE ((user_a_id=$1 AND user_b_id=$2) OR (user_a_id=$2 AND user_b_id=$1))
+          AND status='ended' LIMIT 1`, [partnerReq.from_user_id, userId]);
+        let partnershipId;
+        if (existing.rows.length) {
+          // Reactivate the old partnership — frontend will prompt for points choice
+          partnershipId = existing.rows[0].id;
+          // Don't auto-reinstate — return hasHistory so frontend can ask
+          await db.query(`UPDATE partner_requests SET status='accepted' WHERE id=$1`, [requestId]);
+          json(res, { ok: true, action: 'accepted', hasHistory: true, partnershipId });
+        } else {
+          // New partnership
+          partnershipId = `${partnerReq.from_user_id}-${userId}-${uid()}`;
+          await db.query(`INSERT INTO partnerships (id,user_a_id,user_b_id,status,requested_by) VALUES ($1,$2,$3,'active',$4) ON CONFLICT DO NOTHING`,
+            [partnershipId, partnerReq.from_user_id, userId, partnerReq.from_user_id]);
+          await db.query(`UPDATE partner_requests SET status='accepted' WHERE id=$1`, [requestId]);
+          // Notify requester by email
+          const requester = await getUserById(partnerReq.from_user_id);
+          const accepter = await getUserById(userId);
+          if (requester?.notification_email) {
+            await sendEmail(requester.notification_email, `🎉 ${accepter.nickname || accepter.username} accepted your friend request!`,
+              `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#1a1118;color:#f0dce8;padding:2rem;border-radius:12px">
+                <h2 style="color:#d4537e;margin-bottom:1rem">Friend request accepted!</h2>
+                <p style="color:#b8829e;">@${accepter.username || accepter.nickname} has accepted your friend request on KinkPoints.</p>
+              </div>`);
+          }
+          json(res, { ok: true, action: 'accepted', hasHistory: false, partnershipId });
         }
-        json(res, { ok: true, action: 'accepted' });
       } else if (action === 'decline') {
         await db.query(`UPDATE partner_requests SET status='declined' WHERE id=$1`, [requestId]);
         json(res, { ok: true, action: 'declined' });

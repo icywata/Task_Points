@@ -159,7 +159,19 @@
   .edit-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;width:100%;max-width:400px;display:flex;flex-direction:column;gap:12px}
   .edit-card h3{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
 
-  /* ── Connect modal ── */
+  /* ── Removal notification banner ── */
+  .removal-banner{background:#2d1a1a;border:1px solid #5a2020;border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .removal-banner-text{font-size:13px;color:#f0a0a0;flex:1}
+  .removal-banner-text strong{color:#e06060}
+  .removal-dismiss{height:28px;padding:0 12px;background:transparent;color:#e06060;border:1px solid #5a2020;border-radius:var(--radius-md);font-size:12px;font-weight:600;cursor:pointer}
+
+  /* ── Re-partner modal ── */
+  .repartner-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:250;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+  .repartner-modal.hidden{display:none}
+  .repartner-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:100%;max-width:400px}
+  .repartner-card h2{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px}
+  .repartner-card p{font-size:13px;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.5}
+  .repartner-options{display:flex;flex-direction:column;gap:10px}
   .connect-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;gap:1rem}
   .connect-modal.hidden{display:none}
   .connect-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;width:100%;max-width:380px}
@@ -490,6 +502,25 @@
   </div>
 </div>
 
+<!-- Re-partner modal -->
+<div class="repartner-modal hidden" id="repartnerModal">
+  <div class="repartner-card">
+    <h2>Welcome back! 💝</h2>
+    <p id="repartnerMsg">You've connected with this person before. What would you like to do with your previous points?</p>
+    <div class="repartner-options">
+      <button class="add-btn" onclick="reinstatePartner(false)">
+        Continue where we left off — keep previous points
+      </button>
+      <button class="add-btn" style="background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border)" onclick="reinstatePartner(true)">
+        Fresh start — reset points to zero
+      </button>
+      <button class="add-btn" style="background:transparent;color:var(--text-muted);border:none;font-size:12px" onclick="closeRepartnerModal()">
+        Decide later
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Connect modal -->
 <div class="connect-modal hidden" id="connectModal">
   <button class="connect-close" onclick="closeConnect()">✕</button>
@@ -721,6 +752,8 @@
 
   <!-- Pending partner requests -->
   <div id="pendingRequests"></div>
+  <!-- Removal notification -->
+  <div id="removalNotification"></div>
 
   <!-- Screen tabs -->
   <div class="screen-tabs">
@@ -1224,6 +1257,14 @@ async function bootApp() {
   await loadBalances();
   updateProfileTabLabel();
   renderPendingRequests();
+  // Check for removal notification on load
+  try {
+    const meRes = await fetch('/api/me', { credentials:'include' });
+    if (meRes.ok) {
+      const meData = await meRes.json();
+      renderRemovalNotification(meData.removalNotification);
+    }
+  } catch(e) {}
 }
 
 // Check if already logged in on page load
@@ -2311,6 +2352,15 @@ function renderPartnerProfileView() {
       </label>
     </div>`;
   document.getElementById('screen-profile').appendChild(section);
+  // Add remove partner button at the bottom
+  const removeSection = document.createElement('div');
+  removeSection.id = 'removePartnerSection';
+  removeSection.style.cssText = 'margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)';
+  removeSection.innerHTML = `
+    <button onclick="removePartner()" style="width:100%;padding:10px;background:transparent;border:1px solid #5a2020;border-radius:var(--radius-md);color:#e06060;font-size:13px;font-weight:600;cursor:pointer">
+      Remove ${esc(partnerName)} as partner
+    </button>`;
+  document.getElementById('screen-profile').appendChild(removeSection);
 }
 
 async function changePassword() {
@@ -2660,12 +2710,62 @@ async function sendPartnerRequest() {
 async function respondToRequest(requestId, action) {
   try {
     const res = await fetch('/api/partner/respond', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ requestId, action }) });
-    if (res.ok) {
-      const messages = { accept: '🎉 Partner accepted!', decline: 'Request declined', block: 'User blocked' };
-      toast(messages[action] || 'Done', action === 'accept' ? 'success' : 'info');
-      await bootApp();
+    if (!res.ok) return;
+    const data = await res.json();
+    if (action === 'accept' && data.hasHistory) {
+      // Show re-partner modal before reloading
+      window._repartnerData = { partnershipId: data.partnershipId };
+      document.getElementById('repartnerModal').classList.remove('hidden');
+      return;
     }
+    const messages = { accept: '🎉 Friend accepted!', decline: 'Request declined', block: 'User blocked' };
+    toast(messages[action] || 'Done', action === 'accept' ? 'success' : 'info');
+    await bootApp();
   } catch(e) { console.error('Respond error:', e); }
+}
+
+async function reinstatePartner(resetPoints) {
+  const d = window._repartnerData;
+  if (!d) return;
+  await fetch('/api/partner/reinstate', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body: JSON.stringify({ partnershipId: d.partnershipId, resetPoints }) });
+  closeRepartnerModal();
+  toast(resetPoints ? '🎉 Fresh start!' : '🎉 Welcome back — points reinstated!', 'success');
+  await bootApp();
+}
+
+function closeRepartnerModal() {
+  document.getElementById('repartnerModal').classList.add('hidden');
+  window._repartnerData = null;
+}
+
+async function removePartner() {
+  const partnerName = currentUser.partnerNickname || `@${currentUser.partnerUsername}`;
+  if (!confirm(`Remove ${partnerName} as your partner? Your points history will be preserved.`)) return;
+  const res = await fetch('/api/partner/remove', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:'{}' });
+  if (res.ok) {
+    toast(`Removed ${partnerName}`, 'info');
+    viewingProfile = currentUser.userId;
+    await bootApp();
+  }
+}
+
+function renderRemovalNotification(removal) {
+  const el = document.getElementById('removalNotification');
+  if (!removal) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="removal-banner">
+      <div class="removal-banner-text">
+        <strong>${esc(removal.removedBy)}</strong> removed you as a partner.
+        <span style="opacity:.7;margin-left:4px;font-size:11px">Tap dismiss when you've seen this</span>
+      </div>
+      <button class="removal-dismiss" onclick="dismissRemoval()">Dismiss</button>
+    </div>`;
+}
+
+async function dismissRemoval() {
+  await fetch('/api/partner/dismiss-removal', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:'{}' });
+  document.getElementById('removalNotification').innerHTML = '';
 }
 
 function renderPendingRequests() {
@@ -2679,7 +2779,7 @@ function renderPendingRequests() {
     banner.innerHTML = `
       <div class="request-banner-text">
         ${iconSVG(req.icon||'heart', 16)}
-        <span><strong>${esc(displayName)}</strong> wants to add you as a partner</span>
+        <span><strong>${esc(displayName)}</strong> wants to add you as a friend</span>
       </div>
       <div class="request-banner-actions">
         <button class="req-accept" onclick="respondToRequest('${req.id}','accept')">Accept</button>
@@ -2720,10 +2820,15 @@ setInterval(async () => {
       currentUser.partnerId       = data.partnerId;
       currentUser.partnershipId   = data.partnershipId;
       renderPendingRequests();
-      // Show toast if new request arrived
+      renderRemovalNotification(data.removalNotification);
+      // Show toast for new incoming request
       if (!hadRequests && currentUser.pendingRequests.length > 0) {
         const req = currentUser.pendingRequests[0];
         toast(`💝 ${req.nickname || '@'+req.username} wants to connect!`, 'info');
+      }
+      // Show persistent banner if you were removed
+      if (data.removalNotification && !document.querySelector('.removal-banner')) {
+        toast(`@${data.removalNotification.removedByUsername} removed you as a partner`, 'info');
       }
       if (partnerThemeChanged) { applyTheme(viewingProfile); renderProfileSwitcher(); }
       if (partnerDisconnected) {
