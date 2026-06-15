@@ -2067,10 +2067,14 @@ function renderShop() {
             ${inv.fulfilled?`<span class="fulfilled-badge">✓ Done</span>`:`<button class="fulfil-btn">Fulfil</button>`}
           </div>`;
         if (!inv.fulfilled) {
-          el.querySelector('.fulfil-btn').onclick = () => {
+          el.querySelector('.fulfil-btn').onclick = async () => {
             ps(currentUser.partnerId).inventory[realIdx].fulfilled = true;
             ps(currentUser.partnerId).inventory[realIdx].fulfilledAt = Date.now();
-            scheduleSave(); renderShop();
+            renderShop();
+            toast('✓ Reward fulfilled!', 'success');
+            clearTimeout(saveTimer); saveTimer = null;
+            await saveToServer();
+            await syncNow();
           };
         }
         invList.appendChild(el);
@@ -2175,9 +2179,9 @@ function redeemReward(item) {
     cost: item.cost, fromUserId: shopOwnerId,
     redeemedAt: now, fulfilled: isSolo, fulfilledAt: isSolo ? now : null, isSolo
   });
-  // Save immediately so inventory persists
+  // Save immediately so inventory persists and partner sees it
   clearTimeout(saveTimer); saveTimer = null;
-  saveToServer().then(() => loadFromServer()).then(() => loadBalances()).then(() => renderTotals());
+  saveToServer().then(() => syncNow());
   toast(isSolo ? `🧍 Solo reward unlocked: "${item.name}"` : `🎁 "${item.name}" redeemed for ${item.cost} pts`, 'success');
 }
 
@@ -2689,6 +2693,14 @@ function renderPendingRequests() {
 document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPassword').focus();});
 document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
+// ── Immediate sync after cross-user actions ────────────────────
+async function syncNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  await loadFromServer();
+  await loadBalances();
+  renderTotals();
+}
+
 // ── Fast poll every 8s for pending requests ────────────────────
 setInterval(async () => {
   if (!currentUser) return;
@@ -2892,6 +2904,8 @@ async function openProofForUpload(file, taskRef, taskType, onUploaded) {
     taskRef.proof = { key, state: 'pending', uploadedAt: Date.now(), viewerIds };
     onUploaded(key);
     toast('📷 Proof uploaded — awaiting review', 'success');
+    // Sync immediately so reviewer sees it without refreshing
+    await syncNow();
   } catch(err) {
     console.error('Upload failed:', err);
     toast('Upload failed: ' + err.message, 'error');
@@ -2979,8 +2993,7 @@ async function approveProof() {
   closeProofModal();
   onApprove();
   toast('✓ Proof approved — task complete!', 'success');
-  scheduleSave();
-  await loadFromServer();
+  await syncNow();
 }
 
 async function rejectProof() {
@@ -3076,7 +3089,7 @@ async function openAlbum() {
       el.querySelector('.album-save-btn').onclick = () => downloadProof(item.key);
       el.querySelector('.album-remove-btn').onclick = async () => {
         await fetch('/api/proof/decide', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-          body: JSON.stringify({ key: item.key, save: false }) });
+          body: JSON.stringify({ key: item.key, save: false, deleteNow: true }) });
         openAlbum();
       };
       grid.appendChild(el);
@@ -3123,15 +3136,16 @@ function triggerFileUpload(taskRef, taskType, onUploaded) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*,image/heic,image/heif';
-  // Don't force camera — let user choose camera or gallery (fixes iOS first-tap issue)
-  input.onchange = async (e) => {
+  input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+  document.body.appendChild(input);
+  input.addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-    await openProofForUpload(file, taskRef, taskType, onUploaded);
-  };
-  document.body.appendChild(input); // must be in DOM for iOS Safari
-  input.click();
-  setTimeout(() => document.body.removeChild(input), 30000);
+    if (file) await openProofForUpload(file, taskRef, taskType, onUploaded);
+    // Remove after upload is done
+    if (document.body.contains(input)) document.body.removeChild(input);
+  });
+  // Some browsers need a small delay before click after appending
+  setTimeout(() => input.click(), 10);
 }
 
 // ── Boot ───────────────────────────────────────────────────────
