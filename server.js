@@ -1965,20 +1965,30 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
-      const { key, action } = await parseBody(req);
-      if (action === 'save') {
+      const { key, save, deleteNow } = await parseBody(req);
+      if (save) {
         await db.query(`UPDATE proof_photos SET saved_by = array_append(COALESCE(saved_by,'{}'), $1) WHERE r2_key=$2`, [userId, key]);
-      } else {
-        // Check if others saved it
-        const r = await db.query(`SELECT saved_by FROM proof_photos WHERE r2_key=$1`, [key]);
-        const savedBy = (r.rows[0]?.saved_by || []).filter(id => id !== userId);
-        if (!savedBy.length) {
-          try { await deleteFromR2(key); } catch(e) {}
-          await db.query(`DELETE FROM proof_photos WHERE r2_key=$1`, [key]);
-        } else {
-          await db.query(`UPDATE proof_photos SET saved_by=$1 WHERE r2_key=$2`, [savedBy, key]);
-        }
+      } else if (deleteNow) {
+        // Reject — actually delete from R2
+        try { await deleteFromR2(key); } catch(e) {}
+        await db.query(`DELETE FROM proof_photos WHERE r2_key=$1`, [key]);
       }
+      // If just not saving (no deleteNow), leave in R2 for natural expiry
+      json(res, { ok: true });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
+  // ── Approve proof — mark completion as approved in DB ─────
+  if (req.method === 'POST' && url === '/api/proof/approve') {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      const { key } = await parseBody(req);
+      // Update the task completion record to approved
+      await db.query(`UPDATE task_completions SET proof_status='approved' WHERE proof_key=$1`, [key]);
+      // Also update proof_photos status
+      await db.query(`UPDATE proof_photos SET status='approved', reviewed_at=NOW() WHERE r2_key=$1`, [key]);
       json(res, { ok: true });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;

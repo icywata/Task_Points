@@ -73,6 +73,14 @@
     --accent-bg:#102828;--accent-bg-lite:#183838;--accent-border:#106060;
     --text-primary:#d0f0ee;--text-secondary:#60a8a4;--text-muted:#386860;--text-done:#386860;
   }
+  /* Sakura (light baby pink — My Melody inspired) */
+  body.theme-sakura {
+    --bg-page:#fff0f5;--bg-surface:#ffe4ef;--bg-card:#ffd6e8;--bg-input:#fff0f5;--bg-done:#fce8f0;
+    --border:#f9b8d0;--border-light:#fcd0e0;
+    --accent-light:#c0306a;--accent-mid:#e0427a;--accent-deep:#b02858;
+    --accent-bg:#fce8f0;--accent-bg-lite:#fdd0e4;--accent-border:#f9a8c4;
+    --text-primary:#3a1428;--text-secondary:#8a3058;--text-muted:#b86888;--text-done:#b86888;
+  }
 
   /* Legacy aliases so existing gg/dad profile data still works */
   body.theme-gg { /* same as rose */ 
@@ -417,7 +425,7 @@
   .theme-label{font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text-muted);margin-top:6px;text-align:center;width:100%}
 
   /* ── Icon picker ── */
-  .icon-picker{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:4px}
+  .icon-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;margin-top:4px}
   .icon-opt{width:100%;aspect-ratio:1;border-radius:var(--radius-md);border:1.5px solid var(--border);background:var(--bg-input);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;padding:6px}
   .icon-opt svg{width:100%;height:100%;color:var(--text-muted)}
   .icon-opt:hover{border-color:var(--accent-mid);background:var(--accent-bg)}
@@ -2613,18 +2621,36 @@ function closeConnect() {
 async function sendPartnerRequest() {
   const code = document.getElementById('partnerCodeInput').value.trim();
   const msg = document.getElementById('connectMsg');
-  if (!code) { msg.style.color='#e06060'; msg.textContent='Please enter a connect code'; return; }
+  if (!code) { msg.style.color='var(--accent-mid)'; msg.textContent='Please enter a friend code'; return; }
+  if (code.length < 5) { msg.style.color='#e06060'; msg.textContent='Friend codes are 5 digits'; return; }
+
+  const btn = document.querySelector('#connectModal .add-btn:last-of-type');
+  const origText = btn.textContent;
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  msg.style.color = 'var(--text-muted)'; msg.textContent = 'Looking up friend code…';
+
   try {
-    const res = await fetch('/api/partner/request', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ connectCode: code }) });
+    const res = await fetch('/api/partner/request', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ connectCode: code })
+    });
     const data = await res.json();
     if (res.ok) {
-      toast('✓ ' + data.message, 'success');
+      msg.style.color = '#6abf6a';
+      msg.textContent = '✓ ' + (data.message || 'Friend request sent!');
       document.getElementById('partnerCodeInput').value = '';
-      closeConnect();
+      toast('✓ Friend request sent', 'success');
+      // Close after a moment so user sees the confirmation
+      setTimeout(() => closeConnect(), 1800);
     } else {
-      toast(data.error || 'Something went wrong', 'error');
+      msg.style.color = '#e06060';
+      msg.textContent = data.error || 'Something went wrong';
     }
-  } catch(e) { toast('Connection error', 'error'); }
+  } catch(e) {
+    msg.style.color = '#e06060';
+    msg.textContent = 'Connection error — please try again';
+  }
+  btn.textContent = origText; btn.disabled = false;
 }
 
 async function respondToRequest(requestId, action) {
@@ -2663,40 +2689,45 @@ function renderPendingRequests() {
 document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPassword').focus();});
 document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
-// ── Poll every 15s ─────────────────────────────────────────────
+// ── Fast poll every 8s for pending requests ────────────────────
 setInterval(async () => {
   if (!currentUser) return;
   try {
     const res = await fetch('/api/me', { credentials:'include' });
     if (res.ok) {
       const data = await res.json();
+      const hadRequests = (currentUser.pendingRequests||[]).length;
       const partnerThemeChanged = data.partnerTheme !== currentUser.partnerTheme;
       const partnerDisconnected = currentUser.partnerId && !data.partnerId;
-      currentUser.pendingRequests  = data.pendingRequests || [];
-      currentUser.partnerTheme     = data.partnerTheme;
-      currentUser.partnerIcon      = data.partnerIcon;
-      currentUser.partnerNickname  = data.partnerNickname;
-      currentUser.partnerUsername  = data.partnerUsername;
-      currentUser.partnerRole      = data.partnerRole;
-      currentUser.partnerId        = data.partnerId;
-      currentUser.partnershipId    = data.partnershipId;
+      currentUser.pendingRequests = data.pendingRequests || [];
+      currentUser.partnerTheme    = data.partnerTheme;
+      currentUser.partnerIcon     = data.partnerIcon;
+      currentUser.partnerNickname = data.partnerNickname;
+      currentUser.partnerUsername = data.partnerUsername;
+      currentUser.partnerRole     = data.partnerRole;
+      currentUser.partnerId       = data.partnerId;
+      currentUser.partnershipId   = data.partnershipId;
       renderPendingRequests();
-      if (partnerThemeChanged) {
-        applyTheme(viewingProfile);
-        renderProfileSwitcher();
+      // Show toast if new request arrived
+      if (!hadRequests && currentUser.pendingRequests.length > 0) {
+        const req = currentUser.pendingRequests[0];
+        toast(`💝 ${req.nickname || '@'+req.username} wants to connect!`, 'info');
       }
+      if (partnerThemeChanged) { applyTheme(viewingProfile); renderProfileSwitcher(); }
       if (partnerDisconnected) {
-        // Partner was removed — switch to own profile and reload
         viewingProfile = currentUser.userId;
         applyTheme(currentUser.userId);
-        await loadFromServer();
-        renderAll();
+        await loadFromServer(); renderAll();
         toast('Your partner connection was removed', 'info');
       }
     }
   } catch(e) {}
-  // Reload data if no save pending
-  if (!saveTimer) await loadFromServer();
+}, 8000);
+
+// ── Full data reload every 15s ──────────────────────────────────
+setInterval(async () => {
+  if (!currentUser || saveTimer) return;
+  await loadFromServer();
 }, 15000);
 
 // ── Themes ─────────────────────────────────────────────────────
@@ -2709,6 +2740,7 @@ const THEMES = {
   gold:     { label: 'Gold',     swatch: '#d4a020' },
   slate:    { label: 'Slate',    swatch: '#6080b0' },
   teal:     { label: 'Teal',     swatch: '#20b8b0' },
+  sakura:   { label: 'Sakura',   swatch: '#ffb8d4' },
 };
 
 let selectedTheme = 'rose';
@@ -2920,7 +2952,7 @@ async function approveProof() {
   if (!proofModalContext) return;
   const { key, taskRef, onApprove } = proofModalContext;
   const save = document.getElementById('proofSaveCheck').checked;
-  // Update proof state on the task
+  // Update proof state
   if (taskRef && taskRef.proof) {
     taskRef.proof.state = 'approved';
     taskRef.proof.reviewedAt = Date.now();
@@ -2929,17 +2961,26 @@ async function approveProof() {
       taskRef.proof.savedBy[currentUser.userId] = true;
     }
   }
-  // Handle R2 photo fate
+  // Save to album is independent of approval — always approve the task
+  // Only decide what to do with the R2 photo based on save checkbox
   await fetch('/api/proof/decide', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, action: save ? 'save' : 'delete' })
+    credentials: 'include',
+    body: JSON.stringify({ key, save })
+  });
+  // Also update the task completion status to approved in DB
+  await fetch('/api/proof/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ key })
   });
   closeProofModal();
   onApprove();
   toast('✓ Proof approved — task complete!', 'success');
   scheduleSave();
-  renderTracker();
+  await loadFromServer();
 }
 
 async function rejectProof() {
@@ -2949,7 +2990,8 @@ async function rejectProof() {
   await fetch('/api/proof/decide', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, action: 'delete' })
+    credentials: 'include',
+    body: JSON.stringify({ key, save: false, deleteNow: true })
   });
   // Update proof state
   taskRef.proof = { key: null, state: 'rejected', rejectedAt: Date.now() };
@@ -2957,6 +2999,7 @@ async function rejectProof() {
   await fetch('/api/proof/reject', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ taskId: taskRef.id, uploaderProfile: viewingProfile })
   });
   closeProofModal();
