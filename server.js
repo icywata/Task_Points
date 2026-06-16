@@ -1257,36 +1257,27 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     try {
       async function calcStreak(uid) {
         const r = await db.query(`
-          SELECT DISTINCT completed_on::date as day
+          SELECT DISTINCT completed_on::text as day
           FROM task_completions
           WHERE completed_by=$1
             AND completed_on IS NOT NULL
-            AND completed_on >= (CURRENT_DATE - INTERVAL '90 days')::text
+            AND completed_on::text >= to_char(CURRENT_DATE - INTERVAL '90 days', 'YYYY-MM-DD')
           UNION
-          SELECT DISTINCT completed_on::date as day
+          SELECT DISTINCT completed_on::text as day
           FROM monthly_completions
           WHERE completed_by=$1
             AND completed_on IS NOT NULL
-            AND completed_on >= (CURRENT_DATE - INTERVAL '90 days')::text
+            AND completed_on::text >= to_char(CURRENT_DATE - INTERVAL '90 days', 'YYYY-MM-DD')
           ORDER BY day DESC
         `, [uid]);
-        const days = r.rows.map(r => {
-          // completed_on is stored as YYYY-MM-DD text, just return it directly
-          const d = r.day;
-          if (typeof d === 'string') return d.slice(0,10);
-          return d.toISOString().slice(0,10);
-        });
+        const days = r.rows.map(r => String(r.day).slice(0,10));
         const daySet = new Set(days);
-
-        // Today and yesterday as simple date strings (no timezone needed — dates stored as local strings)
         const now = new Date();
         const pad = n => String(n).padStart(2,'0');
-        const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-        const today = dateStr(now);
-        const yd = new Date(now); yd.setDate(yd.getDate()-1);
-        const yesterday = dateStr(yd);
-        const td = new Date(now); td.setDate(td.getDate()-2);
-        const twoDaysAgo = dateStr(td);
+        const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        const today = fmt(now);
+        const yd = new Date(now); yd.setDate(yd.getDate()-1); const yesterday = fmt(yd);
+        const td = new Date(now); td.setDate(td.getDate()-2); const twoDaysAgo = fmt(td);
 
         let inGrace = false;
         let startFrom;
@@ -1306,8 +1297,8 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
         let streak = 0;
         let cursor = new Date(startFrom + 'T12:00:00Z');
         while (true) {
-          const ds = dateStr(new Date(cursor.getTime()));
-          if (daySet.has(ds)) {
+          const cursorStr = fmt(new Date(cursor.getTime()));
+          if (daySet.has(cursorStr)) {
             streak++;
             cursor = new Date(cursor.getTime() - 86400000);
           } else break;
