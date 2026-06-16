@@ -1583,10 +1583,13 @@ function makeTaskRow(opts) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
       </span>`;
     } else if (opts.visibleTo === currentUser.partnerId) {
-      // Partner only — show their icon
+      // Partner only — show their icon in their theme color
       const partnerIcon = currentUser.partnerIcon || 'star';
       const partnerName = currentUser.partnerNickname || 'Partner';
-      visibilityLabel = `<span class="vis-icon" title="Only ${esc(partnerName)} can see this" aria-label="Visible to ${esc(partnerName)} only">
+      const partnerThemeKey = currentUser.partnerTheme || 'rose';
+      const themeSwatches = { rose:'#d4537e', midnight:'#4a90d9', ember:'#d94040', forest:'#3aad60', violet:'#8040d9', gold:'#d4a020', slate:'#6080b0', teal:'#20b8b0', sakura:'#e0427a' };
+      const themeColor = themeSwatches[partnerThemeKey] || '#d4537e';
+      visibilityLabel = `<span class="vis-icon" title="Only ${esc(partnerName)} can see this" style="background:none;color:${themeColor}">
         ${iconSVG(partnerIcon, 12)}
       </span>`;
     } else if (!opts.visibleTo) {
