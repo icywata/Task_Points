@@ -2592,8 +2592,18 @@ function addTask() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     saveToServer();
   } else {
-    // Daily task — on partner profile this becomes an assigned task
-    if (!isOwnProfile()) {
+    // Daily task
+    if (repeating) {
+      // Repeating tasks go to repeating list regardless of whose profile
+      ps(viewingProfile).repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
+        requireProof, visibleTo, createdBy });
+      toastMsg = '↻ Repeating task added';
+      if (!isOwnProfile()) {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        saveToServer();
+      }
+    } else if (!isOwnProfile()) {
+      // Non-repeating task on partner's profile = assigned with expiry
       const expiry = document.getElementById('taskExpiry').value || selectedDate;
       const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
         completedOn:null, requireProof, visibleTo, createdBy };
@@ -2603,11 +2613,8 @@ function addTask() {
       toastMsg = `⚑ Task assigned to ${currentUser.partnerNickname || 'partner'}`;
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       saveToServer();
-    } else if (repeating) {
-      ps().repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
-        requireProof, visibleTo, createdBy });
-      toastMsg = '↻ Repeating task added';
     } else {
+      // Own profile non-repeating daily task
       const expiry = document.getElementById('taskExpiry').value;
       if (expiry && expiry !== selectedDate) {
         const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
