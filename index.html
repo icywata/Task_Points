@@ -1953,7 +1953,7 @@ function renderDaily() {
         await loadBalances(); renderTotals();
         await onTaskChecked(nowDone);
       },
-      onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
+      onDelete:()=>{ isOwnProfile() ? deleteTaskFrom(t.id, selectedDate) : deleteTask(t.id); }
     });
     if (isOwnProfile()) {
       row.querySelector('.task-delete-future').onclick=()=>{const d=dateFromKey(selectedDate);d.setDate(d.getDate()+1);deleteTaskFrom(t.id,keyFromDate(d));};
