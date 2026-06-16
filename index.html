@@ -159,7 +159,8 @@
   .edit-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;width:100%;max-width:400px;display:flex;flex-direction:column;gap:12px}
   .edit-card h3{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
 
-  /* ── Removal notification banner ── */
+  .vis-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--bg-input);color:var(--text-muted);margin-top:3px;flex-shrink:0;cursor:default;vertical-align:middle}
+  .vis-icon svg{width:11px;height:11px;display:block}
   .removal-banner{background:#2d1a1a;border:1px solid #5a2020;border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:10px}
   .removal-banner-text{font-size:13px;color:#f0a0a0;flex:1}
   .removal-banner-text strong{color:#e06060}
@@ -1573,25 +1574,34 @@ function makeTaskRow(opts) {
   // Edit button SVG
   const editSVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
 
-  // Visibility label — show on own profile for all tasks (including completed) so you always know who sees your history
+  // Visibility icon — clean small icon with tooltip instead of text label
   let visibilityLabel = '';
   if (isOwnProfile() && opts.visibleTo !== undefined) {
-    if (opts.visibleTo) {
-      const name = opts.visibleTo === currentUser.partnerId
-        ? (currentUser.partnerNickname || 'Partner')
-        : 'Specific partner';
-      visibilityLabel = `<span style="font-size:10px;color:var(--text-muted);margin-top:2px;display:block">🔒 Only ${esc(name)} can see this</span>`;
-    } else {
-      visibilityLabel = `<span style="font-size:10px;color:var(--text-muted);margin-top:2px;display:block">👁 Visible to all partners</span>`;
+    if (opts.visibleTo === currentUser.userId) {
+      // Solo task
+      visibilityLabel = `<span class="vis-icon" title="Solo — only you" aria-label="Solo task">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+      </span>`;
+    } else if (opts.visibleTo === currentUser.partnerId) {
+      // Partner only — show their icon
+      const partnerIcon = currentUser.partnerIcon || 'star';
+      const partnerName = currentUser.partnerNickname || 'Partner';
+      visibilityLabel = `<span class="vis-icon" title="Only ${esc(partnerName)} can see this" aria-label="Visible to ${esc(partnerName)} only">
+        ${iconSVG(partnerIcon, 12)}
+      </span>`;
+    } else if (!opts.visibleTo) {
+      // Everyone / all partners
+      visibilityLabel = `<span class="vis-icon" title="Visible to all partners" aria-label="Visible to everyone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </span>`;
     }
   }
 
   row.innerHTML = `
     <div class="task-check${!canComplete?' disabled':''}">${checkSVG()}</div>
     <div class="task-body">
-      <div class="task-name">${esc(opts.name)}</div>
+      <div class="task-name">${esc(opts.name)} ${visibilityLabel}</div>
       ${opts.desc?`<div class="task-desc">${esc(opts.desc)}</div>`:''}
-      ${visibilityLabel}
     </div>
     <div class="task-right">
       ${thumbnailHtml}
