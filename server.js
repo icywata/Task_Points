@@ -1681,15 +1681,14 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
                 [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, mk]);
             }
           }
-          // Repeating tasks — only insert/update if task is still active
-          for (const t of (partnerData.repeating || [])) {
+          // Repeating tasks — only save tasks created by this user (not tasks created by partner)
+          // This prevents re-activating tasks the other user deleted
+          for (const t of (partnerData.repeating || []).filter(t => t.createdBy === userId)) {
             const deletedFrom = (partnerData.repeatingDeleted || {})[t.id] || null;
-            console.log(`Saving partner repeating task ${t.id} to owner ${partnership.partnerId}`);
             const rr = await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,active)
               VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,TRUE)
               ON CONFLICT (id) DO UPDATE SET deleted_from=$8 WHERE tasks.active=TRUE`,
               [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, t.startDate, deletedFrom]);
-            console.log(`Partner repeat save rows: ${rr.rowCount}`);
           }
         }
       }
@@ -2019,16 +2018,11 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       const { taskId, ownerProfile } = await parseBody(req);
-      console.log(`DELETE task ${taskId} by ${userId} ownerProfile=${ownerProfile}`);
       const r = await db.query(
         `UPDATE tasks SET active=FALSE WHERE id=$1 AND (owner_id=$2 OR created_by=$2 OR owner_id=$3)`,
         [taskId, userId, ownerProfile || userId]
       );
-      console.log(`DELETE rows updated: ${r.rowCount}`);
-      // Check what's in the DB for this task
-      const check = await db.query(`SELECT id, owner_id, created_by, active FROM tasks WHERE id=$1`, [taskId]);
-      console.log(`Task state after delete:`, check.rows[0]);
-      json(res, { ok: true, rowsUpdated: r.rowCount });
+      json(res, { ok: true });
     } catch(e) { console.error('Delete error:', e); json(res, { error: e.message }, 500); }
     return;
   }
