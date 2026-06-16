@@ -1366,7 +1366,7 @@ function renderStreak() {
     label = `<span style="color:#e87040;font-weight:700">${streak} day streak</span>`;
   }
   badge.innerHTML = `${flameHtml} ${label}`;
-  renderWeekStrip();
+  renderWeek();
 }
 
 async function loadBalances() {
@@ -1770,11 +1770,16 @@ function renderAssigned() {
   list.innerHTML = '';
   const today = getTodayKey();
   const p = ps();
-  const visible = (p.assigned||[]).filter(t=>{
+  // On own profile: only show tasks assigned TO me by my partner (not ones I created)
+  // On partner's profile: show all their assigned tasks (including ones I assigned them)
+  const baseAssigned = isOwnProfile()
+    ? (p.assigned||[]).filter(t => t.createdBy !== currentUser.userId)
+    : (p.assigned||[]);
+  const visible = baseAssigned.filter(t=>{
     if (t.completedOn) return t.completedOn===selectedDate;
     return t.expiresOn>=selectedDate;
   });
-  const expiredUncompleted = (p.assigned||[]).filter(t=>{
+  const expiredUncompleted = baseAssigned.filter(t=>{
     if (t.completedOn) return false;
     return t.expiresOn<selectedDate && t.assignedOn<=selectedDate;
   });
