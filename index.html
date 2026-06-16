@@ -264,7 +264,7 @@
   .nav-today-btn:hover{border-color:var(--accent-mid);color:var(--accent-light);background:var(--accent-bg)}
 
   /* ── Week strip ── */
-  .week-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:1.5rem}
+  .day-flame{font-size:10px;line-height:1;display:block;text-align:center;margin-bottom:-2px}
   .day-pill{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 7px;border-radius:var(--radius-lg);border:1px solid var(--border-light);background:var(--bg-card);cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
   .day-pill:hover{border-color:var(--accent-deep)}
   .day-pill.active{background:var(--accent-bg);border-color:var(--accent-mid)}
@@ -809,6 +809,11 @@
       </div>
     </div>
 
+    <!-- Streak pill -->
+    <div id="streakPill" style="display:none;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+      <span id="streakBadge" style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:4px"></span>
+    </div>
+
     <div class="week-nav">
       <span class="week-nav-label" id="weekLabel"></span>
       <div class="week-nav-btns">
@@ -1256,6 +1261,7 @@ async function bootApp() {
   viewingProfile = currentUser.userId;
   await loadFromServer();
   await loadBalances();
+  await loadStreak();
   updateProfileTabLabel();
   renderPendingRequests();
   // Check for removal notification on load
@@ -1330,7 +1336,40 @@ function getDayPoints(key, profileId) {
 
 // ── Partnership balances ───────────────────────────────────────
 // Loaded from server — keyed by partnerId
-let partnershipBalances = {};
+let streakData = { streak: 0, inGrace: false, duoStreak: false, partnerStreak: 0, days: [] };
+
+async function loadStreak() {
+  try {
+    const res = await fetch('/api/streak', { credentials:'include' });
+    if (res.ok) { streakData = await res.json(); renderStreak(); }
+  } catch(e) {}
+}
+
+function renderStreak() {
+  const pill = document.getElementById('streakPill');
+  const badge = document.getElementById('streakBadge');
+  if (!isOwnProfile()) { pill.style.display = 'none'; return; }
+  const { streak, inGrace, duoStreak } = streakData;
+  if (streak === 0 && !inGrace) { pill.style.display = 'none'; return; }
+  pill.style.display = 'flex';
+  let flame, color, label;
+  if (duoStreak) {
+    flame = '🔵'; color = '#4a90d9';
+    label = `${streak} day duo streak`;
+  } else if (inGrace && streak === 0) {
+    flame = '❄️'; color = '#90c8e8';
+    label = `Streak on ice — complete a task today!`;
+  } else if (inGrace) {
+    flame = '❄️'; color = '#90c8e8';
+    label = `${streak} day streak — on thin ice!`;
+  } else {
+    flame = '🔥'; color = '#e87040';
+    label = `${streak} day streak`;
+  }
+  badge.innerHTML = `<span style="font-size:16px">${flame}</span> <span style="color:${color}">${label}</span>`;
+  // Re-render week strip with updated flame data
+  renderWeekStrip();
+}
 
 async function loadBalances() {
   try {
@@ -1669,6 +1708,7 @@ function makeTaskRow(opts) {
 // ── Tracker render ─────────────────────────────────────────────
 function renderTracker() {
   const isOwn = isOwnProfile();
+  renderStreak();
   renderWeek();
   renderAssigned();
   renderMonthly();
@@ -1881,12 +1921,27 @@ function renderWeek() {
   strip.innerHTML='';
   const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const sel=dateFromKey(selectedDate),dow=sel.getDay();
+  const today = getTodayKey();
+  const yesterday = keyFromDate(new Date(Date.now()-86400000));
+  const streakDays = new Set(streakData.days || []);
   for(let i=0;i<7;i++){
     const d=new Date(sel);d.setDate(sel.getDate()-dow+i);
     const key=keyFromDate(d),pts=getDayPoints(key);
     const pill=document.createElement('div');
     pill.className='day-pill'+(key===selectedDate?' active':'');
-    pill.innerHTML=`<span class="day-label">${dn[d.getDay()]}</span><span class="day-num">${d.getDate()}</span><span class="day-pts">${pts>0?pts:''}</span>`;
+    // Flame/ice indicator
+    let flameEl = '';
+    if (isOwnProfile() && key <= today) {
+      if (streakDays.has(key)) {
+        const color = streakData.duoStreak ? '#4a90d9' : '#e87040';
+        flameEl = `<span class="day-flame" style="color:${color}">🔥</span>`;
+      } else if (key === today && streakData.inGrace) {
+        flameEl = `<span class="day-flame">❄️</span>`;
+      } else if (key === yesterday && streakData.inGrace && !streakDays.has(yesterday)) {
+        flameEl = `<span class="day-flame">❄️</span>`;
+      }
+    }
+    pill.innerHTML=`<span class="day-label">${dn[d.getDay()]}</span>${flameEl}<span class="day-num">${d.getDate()}</span><span class="day-pts">${pts>0?pts:''}</span>`;
     pill.onclick=()=>{selectedDate=key;renderTracker();};
     strip.appendChild(pill);
   }
@@ -2811,6 +2866,7 @@ async function syncNow() {
   clearTimeout(saveTimer); saveTimer = null;
   await loadFromServer();
   await loadBalances();
+  await loadStreak();
   renderTotals();
 }
 
@@ -2858,6 +2914,7 @@ setInterval(async () => {
 setInterval(async () => {
   if (!currentUser || saveTimer) return;
   await loadFromServer();
+  loadStreak();
 }, 15000);
 
 // ── Themes ─────────────────────────────────────────────────────

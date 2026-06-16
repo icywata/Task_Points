@@ -1250,6 +1250,72 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     return;
   }
 
+  // ── Streak data ────────────────────────────────────────────
+  if (req.method === 'GET' && url.startsWith('/api/streak')) {
+    const userId = await requireAuth(req);
+    if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
+    try {
+      async function calcStreak(uid) {
+        // Get all days with any completion in last 90 days
+        const r = await db.query(`
+          SELECT DISTINCT completed_on::date as day FROM task_completions
+          WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
+          UNION
+          SELECT DISTINCT completed_on::date as day FROM monthly_completions
+          WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
+          ORDER BY day DESC
+        `, [uid]);
+        const days = r.rows.map(r => r.day.toISOString().slice(0,10));
+        const daySet = new Set(days);
+        const today = new Date().toISOString().slice(0,10);
+        const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        const twoDaysAgo = new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+        // Build streak counting backwards from today
+        let streak = 0;
+        let inGrace = false;
+        let check = today;
+        // If no completion today, check grace period
+        if (!daySet.has(today)) {
+          if (daySet.has(yesterday)) { inGrace = true; } // yesterday was done, today is grace day
+          else { return { streak: 0, inGrace: false, daySet: days }; } // streak broken
+        }
+        // Count consecutive days
+        let cursor = new Date(today);
+        while (true) {
+          const dateStr = cursor.toISOString().slice(0,10);
+          if (daySet.has(dateStr)) {
+            streak++;
+            cursor = new Date(cursor - 86400000);
+          } else if (inGrace && dateStr === yesterday && streak === 0) {
+            // Already handled above
+            cursor = new Date(cursor - 86400000);
+          } else {
+            break;
+          }
+        }
+        return { streak, inGrace, daySet: days };
+      }
+
+      const mine = await calcStreak(userId);
+      // Get partner streak if exists
+      const partnershipResult = await db.query(`
+        SELECT CASE WHEN user_a_id=$1 THEN user_b_id ELSE user_a_id END as partner_id
+        FROM partnerships WHERE (user_a_id=$1 OR user_b_id=$1) AND status='active' LIMIT 1
+      `, [userId]);
+      let partnerStreak = null;
+      let duoStreak = false;
+      if (partnershipResult.rows.length) {
+        const partnerId = partnershipResult.rows[0].partner_id;
+        const theirs = await calcStreak(partnerId);
+        partnerStreak = theirs.streak;
+        // Duo streak: both >= 3, neither in grace
+        duoStreak = mine.streak >= 3 && theirs.streak >= 3 && !mine.inGrace && !theirs.inGrace;
+      }
+      json(res, { streak: mine.streak, inGrace: mine.inGrace, duoStreak, partnerStreak, days: mine.daySet });
+    } catch(e) { json(res, { error: e.message }, 500); }
+    return;
+  }
+
   if (req.method === 'GET' && url === '/api/me') {
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Not authenticated' }, 401); return; }
