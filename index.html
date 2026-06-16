@@ -244,7 +244,7 @@
 
   .total-card{background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:var(--radius-lg);padding:.9rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between}
   .total-label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--accent-light);margin-bottom:3px;opacity:.8}
-  .total-val{font-size:28px;font-weight:700;color:#fff;line-height:1;letter-spacing:-.5px}
+  .total-val{font-size:28px;font-weight:700;color:var(--text-primary);line-height:1;letter-spacing:-.5px}
   .total-unit{font-size:13px;font-weight:500;color:var(--accent-light);margin-left:4px;opacity:.7}
   .total-icon{width:40px;height:40px;border-radius:50%;background:var(--accent-bg-lite);display:flex;align-items:center;justify-content:center}
   .total-icon svg{color:var(--accent-mid)}
@@ -270,9 +270,9 @@
   .day-pill:hover{border-color:var(--accent-deep)}
   .day-pill.active{background:var(--accent-bg);border-color:var(--accent-mid)}
   .day-label{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
-  .day-pill.active .day-label{color:var(--accent-light)}
+  .day-pill.active .day-label{color:var(--accent-mid)}
   .day-num{font-size:16px;font-weight:500;color:var(--text-primary)}
-  .day-pill.active .day-num{color:#fff}
+  .day-pill.active .day-num{color:var(--accent-deep)}
   .day-pts{font-size:10px;font-weight:600;color:var(--accent-mid);min-height:13px}
 
   /* ── Section heads ── */
@@ -858,7 +858,6 @@
           <div class="type-toggle">
             <button class="type-btn active-daily" id="btn-daily" onclick="setType('daily')">📋 Task</button>
             <button class="type-btn" id="btn-monthly" onclick="setType('monthly')">🎯 Goal</button>
-            <button class="type-btn" id="btn-assigned" onclick="setType('assigned')" style="display:none">⚑ Assign</button>
           </div>
         </div>
         <div><label for="taskName">Name</label><input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80"/></div>
@@ -1533,7 +1532,7 @@ function goToday() { selectedDate=getTodayKey(); renderTracker(); }
 function setType(t) {
   addType = t;
   // Update button active states — only daily and monthly buttons exist now
-  ['daily','monthly','assigned'].forEach(x => {
+  ['daily','monthly'].forEach(x => {
     const btn = document.getElementById('btn-'+x);
     if (btn) btn.className = 'type-btn' + (x===t ? ' active-'+x : '');
   });
@@ -1810,10 +1809,9 @@ function renderTracker() {
   document.getElementById('addTaskSection').style.display = 'block';
   document.getElementById('btn-daily').style.display    = '';
   document.getElementById('btn-monthly').style.display  = '';
-  document.getElementById('btn-assigned').style.display = isOwnProfile() ? 'none' : '';
-  // If on partner profile, default to assign
-  if (!isOwnProfile() && addType === 'daily') { addType = 'assigned'; }
-  if (isOwnProfile() && addType === 'assigned') { addType = 'daily'; }
+  // On partner profile, daily task = assigned task, so reset if needed
+  if (!isOwnProfile() && addType === 'assigned') addType = 'daily';
+  if (isOwnProfile() && addType === 'assigned') addType = 'daily';
   setType(addType);
   // Notice when viewing partner's profile
   const existing = document.getElementById('readonlyNotice');
@@ -2122,16 +2120,21 @@ function renderShop() {
       partnerItems.forEach(item => {
         const el = document.createElement('div');
         el.className = 'shop-item';
-        const scopeLabel = item.visibleTo === currentUser.partnerId
-          ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>`
-          : item.visibleTo
-            ? `<span class="section-badge assigned" style="font-size:9px">🔒 Private</span>`
-            : `<span class="section-badge repeat" style="font-size:9px">👁 Everyone</span>`;
+        // Use same vis-icon style as tasks — themed partner icon or everyone icon
+        const themeSwatches = { rose:'#d4537e', midnight:'#4a90d9', ember:'#d94040', forest:'#3aad60', violet:'#8040d9', gold:'#d4a020', slate:'#6080b0', teal:'#20b8b0', sakura:'#e0427a' };
+        let scopeLabel;
+        if (item.visibleTo === currentUser.partnerId) {
+          const color = themeSwatches[currentUser.partnerTheme||'rose'] || '#d4537e';
+          const name  = currentUser.partnerNickname || 'Partner';
+          const icon  = currentUser.partnerIcon || 'star';
+          scopeLabel = `<span class="vis-icon" title="Only ${esc(name)} can see this" style="background:none;color:${color}">${iconSVG(icon,12)}</span>`;
+        } else {
+          scopeLabel = `<span class="vis-icon" title="Visible to all partners"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>`;
+        }
         el.innerHTML = `
           <div class="shop-item-body">
-            <div class="shop-item-name">${esc(item.name)}</div>
+            <div class="shop-item-name">${esc(item.name)} ${scopeLabel}</div>
             ${item.desc?`<div class="shop-item-desc">${esc(item.desc)}</div>`:''}
-            <div style="margin-top:4px">${scopeLabel}</div>
           </div>
           <div class="shop-item-right">
             <span class="shop-cost">${item.cost} pts</span>
@@ -2589,15 +2592,24 @@ function addTask() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     saveToServer();
   } else {
-    // Daily task
-    if (repeating) {
+    // Daily task — on partner profile this becomes an assigned task
+    if (!isOwnProfile()) {
+      const expiry = document.getElementById('taskExpiry').value || selectedDate;
+      const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
+        completedOn:null, requireProof, visibleTo, createdBy };
+      ps(viewingProfile).assigned.push(task);
+      document.getElementById('taskExpiry').value = '';
+      notifyAssigned(task, expiry);
+      toastMsg = `⚑ Task assigned to ${currentUser.partnerNickname || 'partner'}`;
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      saveToServer();
+    } else if (repeating) {
       ps().repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
         requireProof, visibleTo, createdBy });
       toastMsg = '↻ Repeating task added';
     } else {
-      const expiry = document.getElementById('taskExpiry').value || selectedDate;
-      if (expiry !== selectedDate) {
-        // Has custom expiry — treat as assigned task to self
+      const expiry = document.getElementById('taskExpiry').value;
+      if (expiry && expiry !== selectedDate) {
         const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
           completedOn:null, requireProof, visibleTo, createdBy };
         ps().assigned.push(task);
