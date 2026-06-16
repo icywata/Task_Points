@@ -1681,10 +1681,12 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
                 [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, mk]);
             }
           }
-          // Repeating tasks
+          // Repeating tasks — only insert/update if task is still active
           for (const t of (partnerData.repeating || [])) {
             const deletedFrom = (partnerData.repeatingDeleted || {})[t.id] || null;
-            await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,active) VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,TRUE) ON CONFLICT (id) DO UPDATE SET deleted_from=$8`,
+            await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,start_date,deleted_from,active)
+              VALUES ($1,$2,$3,'repeat',$4,$5,$6,$7,$8,TRUE)
+              ON CONFLICT (id) DO UPDATE SET deleted_from=$8 WHERE tasks.active=TRUE`,
               [t.id, partnership.partnerId, userId, t.name, t.desc||null, t.pts, t.startDate, deletedFrom]);
           }
         }

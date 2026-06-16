@@ -2740,11 +2740,8 @@ async function confirmReassign(taskId) {
 async function deleteTask(taskId) {
   // Wait for any in-flight save to complete
   if (saveInFlight) await new Promise(r => { const i = setInterval(()=>{ if(!saveInFlight){clearInterval(i);r();} },50); });
-  // Save any pending state — ensures newly added tasks are in DB before we delete
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  // Always save current state first (so newly added tasks exist in DB)
-  await saveToServer();
-  // Now remove from local state
+  // Remove from local state FIRST
   const p = ps(viewingProfile);
   p.assigned = (p.assigned||[]).filter(t=>t.id!==taskId);
   Object.keys(p.days||{}).forEach(dk=>{ if(p.days[dk].tasks) p.days[dk].tasks = p.days[dk].tasks.filter(t=>t.id!==taskId); });
@@ -2752,7 +2749,9 @@ async function deleteTask(taskId) {
   p.repeating = (p.repeating||[]).filter(t=>t.id!==taskId);
   renderTracker();
   toast('🗑 Task deleted', 'info');
+  // Now save state (without the deleted task) then hit delete endpoint
   try {
+    await saveToServer();
     await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body:JSON.stringify({ taskId, ownerProfile: viewingProfile }) });
     await loadFromServer();
