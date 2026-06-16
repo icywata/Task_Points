@@ -1256,38 +1256,38 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       async function calcStreak(uid) {
-        // Get all days with any completion in last 90 days
         const r = await db.query(`
           SELECT DISTINCT completed_on::date as day FROM task_completions
           WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
+            AND completed_on IS NOT NULL
           UNION
           SELECT DISTINCT completed_on::date as day FROM monthly_completions
           WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
+            AND completed_on IS NOT NULL
           ORDER BY day DESC
         `, [uid]);
         const days = r.rows.map(r => r.day.toISOString().slice(0,10));
         const daySet = new Set(days);
         const today = new Date().toISOString().slice(0,10);
         const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        const twoDaysAgo = new Date(Date.now()-2*86400000).toISOString().slice(0,10);
-        // Build streak counting backwards from today
-        let streak = 0;
+        // Determine starting point for streak count
         let inGrace = false;
-        let check = today;
-        // If no completion today, check grace period
-        if (!daySet.has(today)) {
-          if (daySet.has(yesterday)) { inGrace = true; } // yesterday was done, today is grace day
-          else { return { streak: 0, inGrace: false, daySet: days }; } // streak broken
+        let startFrom;
+        if (daySet.has(today)) {
+          startFrom = today; // active today
+        } else if (daySet.has(yesterday)) {
+          startFrom = yesterday; // grace period — completed yesterday, not today yet
+          inGrace = true;
+        } else {
+          return { streak: 0, inGrace: false, daySet: days }; // streak broken
         }
-        // Count consecutive days
-        let cursor = new Date(today);
+        // Count consecutive days backwards from startFrom
+        let streak = 0;
+        let cursor = new Date(startFrom + 'T12:00:00Z');
         while (true) {
           const dateStr = cursor.toISOString().slice(0,10);
           if (daySet.has(dateStr)) {
             streak++;
-            cursor = new Date(cursor - 86400000);
-          } else if (inGrace && dateStr === yesterday && streak === 0) {
-            // Already handled above
             cursor = new Date(cursor - 86400000);
           } else {
             break;
@@ -1303,15 +1303,19 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
         FROM partnerships WHERE (user_a_id=$1 OR user_b_id=$1) AND status='active' LIMIT 1
       `, [userId]);
       let partnerStreak = null;
+      let partnerInGrace = false;
+      let partnerDays = [];
       let duoStreak = false;
       if (partnershipResult.rows.length) {
         const partnerId = partnershipResult.rows[0].partner_id;
         const theirs = await calcStreak(partnerId);
         partnerStreak = theirs.streak;
+        partnerInGrace = theirs.inGrace;
+        partnerDays = theirs.daySet;
         // Duo streak: both >= 3, neither in grace
         duoStreak = mine.streak >= 3 && theirs.streak >= 3 && !mine.inGrace && !theirs.inGrace;
       }
-      json(res, { streak: mine.streak, inGrace: mine.inGrace, duoStreak, partnerStreak, days: mine.daySet });
+      json(res, { streak: mine.streak, inGrace: mine.inGrace, duoStreak, partnerStreak, partnerInGrace, partnerDays, days: mine.daySet });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
   }
@@ -1760,21 +1764,6 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
       }
 
       // Assigned tasks
-      for (const t of (myData.assigned || [])) {
-        await db.query(`INSERT INTO tasks (id,owner_id,created_by,type,name,description,points,assigned_on,expires_on,require_proof,visible_to,active) VALUES ($1,$2,$3,'assigned',$4,$5,$6,$7,$8,$9,$10,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$10 WHERE tasks.active=TRUE`,
-          [t.id, userId, userId, t.name, t.desc||null, t.pts, t.assignedOn, t.expiresOn, t.requireProof||false, t.visibleTo||null]);
-        if (t.completedOn) {
-          await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-            [uid(), t.id, userId, t.completedOn]);
-        }
-        if (t.proof?.key) {
-          await db.query(`INSERT INTO task_completions (id,task_id,completed_by,completed_on,proof_key,proof_status)
-            VALUES ($1,$2,$3,$4,$5,$6)
-            ON CONFLICT (task_id,completed_by,completed_on) DO UPDATE SET proof_key=$5,proof_status=$6`,
-            [uid(), t.id, userId, t.completedOn||t.assignedOn, t.proof.key, t.proof.state||'pending']);
-        }
-      }
-
       // Shop items
       for (const item of (myData.shop || [])) {
         await db.query(`INSERT INTO shop_items (id,owner_id,name,description,cost,visible_to,is_solo,active) VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE) ON CONFLICT (id) DO UPDATE SET visible_to=$6, is_solo=$7`,
@@ -1996,8 +1985,11 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     const userId = await requireAuth(req);
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
-      const { taskId, name, desc, pts, requireProof, visibleTo, updateVisibility } = await parseBody(req);
-      if (updateVisibility) {
+      const { taskId, name, desc, pts, requireProof, visibleTo, updateVisibility, expiresOn, updateExpiry } = await parseBody(req);
+      if (updateExpiry) {
+        await db.query(`UPDATE tasks SET expires_on=$1 WHERE id=$2 AND (created_by=$3 OR owner_id=$3)`,
+          [expiresOn, taskId, userId]);
+      } else if (updateVisibility) {
         const r = await db.query(`UPDATE tasks SET visible_to=$1 WHERE id=$2 AND owner_id=$3`,
           [visibleTo||null, taskId, userId]);
         if (r.rowCount === 0) {
