@@ -1855,13 +1855,19 @@ function renderAssigned() {
     if (!isDone) {
       const exp=dateFromKey(t.expiresOn),now=dateFromKey(today);
       const diffDays=Math.round((exp-now)/86400000);
-      if (isExpired){expiryLabel='Expired';expiryCls='expired';}
+      if (isExpired){
+        expiryLabel='Expired';expiryCls='expired';
+      }
       else if (diffDays===0){expiryLabel='Expires today';expiryCls='soon';}
       else if (diffDays===1){expiryLabel='Expires tomorrow';expiryCls='soon';}
       else if (diffDays<=3){expiryLabel=`${diffDays}d left`;expiryCls='soon';}
       else{expiryLabel=`Due ${new Date(exp.getTime()).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;expiryCls='ok';}
     }
-    const expiryTag=!isDone?`<span class="expiry-tag ${expiryCls}">${expiryLabel}</span>`:'';
+    const expiryTag = !isDone
+      ? isExpired
+        ? `<span class="expiry-tag expired" style="cursor:pointer" onclick="showExpiredOptions('${t.id}')" title="Click to reassign or delete">Expired — tap to reassign</span>`
+        : `<span class="expiry-tag ${expiryCls}">${expiryLabel}</span>`
+      : '';
     const rowExtra='assigned-row'+(expiryCls==='soon'?' expiring-soon':'');
     // Own profile = can check off. Partner's assigned tasks viewed by partner = can check. Viewing partner's profile = read only
     const canCheck = isOwnProfile() && !isExpired;
@@ -2681,9 +2687,53 @@ async function notifyAssigned(task, expiresOn) {
 }
 
 // ── Task deletion helpers ──────────────────────────────────────
+function showExpiredOptions(taskId) {
+  const p = ps(viewingProfile);
+  const t = (p.assigned||[]).find(x => x.id === taskId);
+  if (!t) return;
+  // Remove any existing popup
+  const existing = document.getElementById('expiredPopup');
+  if (existing) existing.remove();
+  const popup = document.createElement('div');
+  popup.id = 'expiredPopup';
+  popup.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:flex;align-items:center;justify-content:center;padding:1.5rem`;
+  popup.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;width:100%;max-width:340px">
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Task expired</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">${esc(t.name)}</div>
+      <label style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px">New expiry date</label>
+      <input type="date" id="reassignDate" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box;margin-bottom:1rem"/>
+      <div style="display:flex;gap:8px">
+        <button onclick="confirmReassign('${taskId}')" style="flex:1;padding:10px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer">Reassign</button>
+        <button onclick="deleteTask('${taskId}');document.getElementById('expiredPopup')?.remove()" style="padding:10px 14px;background:transparent;color:#e06060;border:1px solid #5a2020;border-radius:var(--radius-md);font-size:13px;cursor:pointer">Delete</button>
+        <button onclick="document.getElementById('expiredPopup').remove()" style="padding:10px 14px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius-md);font-size:13px;cursor:pointer">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(popup);
+  popup.onclick = e => { if (e.target === popup) popup.remove(); };
+  // Default to tomorrow
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  document.getElementById('reassignDate').value = tomorrow;
+}
+
+function confirmReassign(taskId) {
+  const newDate = document.getElementById('reassignDate')?.value;
+  if (!newDate) return;
+  const p = ps(viewingProfile);
+  const idx = p.assigned.findIndex(x => x.id === taskId);
+  if (idx >= 0) {
+    p.assigned[idx].expiresOn = newDate;
+    p.assigned[idx].completedOn = null;
+    scheduleSave();
+    renderTracker();
+    toast(`✓ Task reassigned until ${newDate}`, 'success');
+  }
+  document.getElementById('expiredPopup')?.remove();
+}
+
 async function deleteTask(taskId) {
-  // Cancel any pending save first — prevents re-inserting the deleted task
-  clearTimeout(saveTimer); saveTimer = null;
+  // Save any pending state first so we don't accidentally re-create the task
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await saveToServer(); }
   const p = ps(viewingProfile);
   p.assigned = (p.assigned||[]).filter(t=>t.id!==taskId);
   Object.keys(p.days||{}).forEach(dk=>{ if(p.days[dk].tasks) p.days[dk].tasks = p.days[dk].tasks.filter(t=>t.id!==taskId); });
@@ -2692,10 +2742,8 @@ async function deleteTask(taskId) {
   renderTracker();
   toast('🗑 Task deleted', 'info');
   try {
-    const res = await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body:JSON.stringify({ taskId, ownerProfile: viewingProfile }) });
-    const data = await res.json();
-
     await loadFromServer();
   } catch(e) { console.error('Delete failed:', e); toast('Delete failed', 'error'); }
 }
