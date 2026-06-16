@@ -1875,6 +1875,7 @@ function renderMonthly() {
         await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
           body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: nowDone, taskType: 'monthly' }) });
         await loadBalances(); renderTotals();
+        await onTaskChecked(nowDone);
       },
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1901,6 +1902,7 @@ function renderDaily() {
         await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
           body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: nowDone, taskType: 'repeat' }) });
         await loadBalances(); renderTotals();
+        await onTaskChecked(nowDone);
       },
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
     });
@@ -1933,6 +1935,7 @@ function renderDaily() {
           body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: newDone, taskType: 'daily' })
         });
         await loadBalances(); renderTotals();
+        await onTaskChecked(newDone);
       },
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -2887,6 +2890,61 @@ document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key===
 document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
 // ── Immediate sync after cross-user actions ────────────────────
+function launchConfetti() {
+  const colors = ['#d4537e','#f4c0d1','#4a90d9','#a8c8f0','#e87040','#ffd700','#6abf6a','#c084fc','#ff6b6b','#ffa500'];
+  // Get streak pill position as burst origin
+  const pill = document.getElementById('streakPill');
+  const rect = pill ? pill.getBoundingClientRect() : null;
+  const originX = rect ? (rect.left + rect.width / 2) : window.innerWidth / 2;
+  const originY = rect ? (rect.top + rect.height / 2) : 100;
+  const count = 90;
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    const size = Math.random() * 9 + 4;
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const angle = Math.random() * 360;
+    const speed = Math.random() * 400 + 200;
+    const spread = (Math.random() - 0.5) * window.innerWidth * 1.2;
+    const fallHeight = Math.random() * window.innerHeight * 0.8 + 200;
+    const duration = Math.random() * 1200 + 800;
+    const isCircle = Math.random() > 0.4;
+    el.style.cssText = `position:fixed;top:${originY}px;left:${originX}px;width:${size}px;height:${size}px;
+      background:${color};border-radius:${isCircle?'50%':'2px'};pointer-events:none;z-index:9999;
+      transform:rotate(${angle}deg);opacity:1`;
+    document.body.appendChild(el);
+    el.animate([
+      { transform:`rotate(${angle}deg) translate(0,0)`, opacity:1 },
+      { transform:`rotate(${angle + 540 * (Math.random()>0.5?1:-1)}deg) translate(${spread}px,${fallHeight}px)`, opacity:0 }
+    ], { duration, easing:'cubic-bezier(0.2,0.8,0.4,1)', fill:'forwards' })
+      .onfinish = () => el.remove();
+  }
+}
+
+async function onTaskChecked(newDone) {
+  if (!newDone || selectedDate !== getTodayKey()) return;
+  const prevStreak = streakData.streak;
+  const wasGrace = streakData.inGrace;
+  // Small delay to ensure DB write has committed before querying streak
+  await new Promise(r => setTimeout(r, 300));
+  await loadStreak();
+  renderStreak();
+  // Fire confetti if streak just started, incremented, or was saved from grace
+  const streakIncreased = streakData.streak > prevStreak;
+  const graceSaved = wasGrace && !streakData.inGrace;
+  if (streakData.streak > 0 && (streakIncreased || graceSaved)) {
+    launchConfetti();
+    if (graceSaved) {
+      toast(`🔥 Streak saved! ${streakData.streak} days`, 'success');
+    } else if (streakData.streak === 1) {
+      toast('🔥 Streak started! Keep it going!', 'success');
+    } else if (streakData.duoStreak) {
+      toast(`🔵🔥 Duo streak! ${streakData.streak} days together!`, 'success');
+    } else {
+      toast(`🔥 ${streakData.streak} day streak!`, 'success');
+    }
+  }
+}
+
 async function syncNow() {
   clearTimeout(saveTimer); saveTimer = null;
   await loadFromServer();
