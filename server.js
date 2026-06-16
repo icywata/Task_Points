@@ -1310,6 +1310,7 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
             break;
           }
         }
+        console.log(`Streak for ${uid}: days=${JSON.stringify(days)}, today=${today}, yesterday=${yesterday}, twoDaysAgo=${twoDaysAgo}, inGrace=${inGrace}, streak=${streak}`);
         return { streak, inGrace, daySet: days };
       }
 
