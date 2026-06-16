@@ -335,8 +335,6 @@
   .type-btn.active-monthly{background:#2a1f3d;border-color:#7c5cbf;color:#c4aaee}
   .type-btn.active-repeat{background:#1d2a2a;border-color:#3a9e9e;color:#7dd4d4}
   .type-btn.active-assigned{background:#2d200a;border-color:#c47c1a;color:#e8a84a}
-  .assigned-fields{display:none;flex-direction:column;gap:10px}
-  .assigned-fields.visible{display:flex}
   .add-btn{width:100%;height:40px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s,transform .1s}
   .add-btn:hover{background:var(--accent-deep)}
   .add-btn:active{transform:scale(.98)}
@@ -1363,7 +1361,7 @@ function renderStreak() {
       label = `<span style="color:#4a90d9;font-weight:700">${streak} day duo streak 🔥</span>`;
     } else if (inGrace) {
       flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
-      label = `<span style="color:var(--text-muted)">${streak > 0 ? streak + ' day streak — ' : ''}Complete a task to keep the streak alive!</span>`;
+      label = `<span style="color:var(--text-muted)">${streak > 0 ? streak + ' day streak — ' : ''}Complete a task today to keep it alive!</span>`;
     } else {
       flameHtml = `<span style="font-size:16px">🔥</span>`;
       label = `<span style="color:#e87040;font-weight:700">${streak} day streak</span>`;
@@ -1382,8 +1380,7 @@ function renderStreak() {
       label = `<span style="color:#4a90d9;font-weight:700">${ps} day duo streak 🔥</span>`;
     } else if (pi) {
       flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
-      label = `<span style="color:var(--text-muted)">${ps > 0 ? ps + ' day streak — ' : ''}${name} needs to complete a task today!</span>`;
-    } else {
+      label = `<span style="color:var(--text-muted)">${ps > 0 ? ps + ' day streak — ' : ''}${name} needs to complete a task today!</span>`;    } else {
       flameHtml = `<span style="font-size:16px">🔥</span>`;
       label = `<span style="color:#e87040;font-weight:700">${name} is on a ${ps} day streak</span>`;
     }
@@ -2015,7 +2012,17 @@ function renderWeek() {
         const flameIcon = streakData.duoStreak ? '🔵' : '🔥';
         flameEl = `<span class="day-flame">${flameIcon}</span>`;
       } else if (key === today && inGrace) {
-        flameEl = `<span class="day-flame" style="opacity:.3">🔥</span>`;
+        // Today is the grace day — faded flame
+        flameEl = `<span class="day-flame" style="opacity:.35">🔥</span>`;
+      } else if (inGrace) {
+        // A past day with no completion during an active grace period = the missed day, show ice
+        const keyDate = new Date(key + 'T12:00:00Z');
+        const todayDate = new Date(today + 'T12:00:00Z');
+        const diffDays = Math.round((todayDate - keyDate) / 86400000);
+        if (diffDays === 1) {
+          // Yesterday = the missed day
+          flameEl = `<span class="day-flame">❄️</span>`;
+        }
       }
     }
     pill.innerHTML=`<span class="day-label">${dn[d.getDay()]}</span>${flameEl}<span class="day-num">${d.getDate()}</span><span class="day-pts">${pts>0?pts:''}</span>`;
@@ -2382,14 +2389,6 @@ function getMyPermissionsFor(partnerId) {
   if (!p.permissions) p.permissions = {};
   if (!p.permissions[partnerId]) p.permissions[partnerId] = { tasks: false, shop: false };
   return p.permissions[partnerId];
-}
-
-function viewedProfileGrantsTaskPerms() {
-  if (isOwnProfile()) return true;
-  const viewedProfile = ps(viewingProfile);
-  if (!viewedProfile.permissions) return false;
-  const perms = viewedProfile.permissions[currentUser.userId];
-  return !!(perms && perms.tasks);
 }
 
 function viewedProfileGrantsShopPerms() {
@@ -3275,16 +3274,6 @@ function renderIconPicker(currentIconId) {
 // Stored on the task itself: task.proof = { key, state, uploadedAt, reviewedAt, rejectionNote }
 
 let proofModalContext = null; // { key, taskRef, isReviewer, onApprove, onReject }
-
-const DAILY_UPLOAD_LIMIT = 10;
-
-function getUploadCountToday() {
-  const proofs = state._proofs || {};
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  return Object.values(proofs).filter(p =>
-    p.uploadedBy === currentUser.userId && p.uploadedAt >= todayStart.getTime()
-  ).length;
-}
 
 async function uploadProof(file, taskId, taskType, viewerIds) {
   const res = await fetch('/api/proof/upload', {

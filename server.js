@@ -1256,30 +1256,47 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       async function calcStreak(uid) {
+        // Use DB timezone-aware dates — convert to Eastern time for day boundaries
         const r = await db.query(`
-          SELECT DISTINCT completed_on::date as day FROM task_completions
+          SELECT DISTINCT (completed_on AT TIME ZONE 'America/New_York')::date as day
+          FROM task_completions
           WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
             AND completed_on IS NOT NULL
           UNION
-          SELECT DISTINCT completed_on::date as day FROM monthly_completions
+          SELECT DISTINCT (completed_on AT TIME ZONE 'America/New_York')::date as day
+          FROM monthly_completions
           WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
             AND completed_on IS NOT NULL
           ORDER BY day DESC
         `, [uid]);
         const days = r.rows.map(r => r.day.toISOString().slice(0,10));
         const daySet = new Set(days);
-        const today = new Date().toISOString().slice(0,10);
-        const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        // Determine starting point for streak count
+        // Get today, yesterday, and two days ago in Eastern time
+        const tzRow = await db.query(`SELECT 
+          (NOW() AT TIME ZONE 'America/New_York')::date as today,
+          ((NOW() - INTERVAL '1 day') AT TIME ZONE 'America/New_York')::date as yesterday,
+          ((NOW() - INTERVAL '2 days') AT TIME ZONE 'America/New_York')::date as two_days_ago`);
+        const today     = tzRow.rows[0].today.toISOString().slice(0,10);
+        const yesterday = tzRow.rows[0].yesterday.toISOString().slice(0,10);
+        const twoDaysAgo = tzRow.rows[0].two_days_ago.toISOString().slice(0,10);
+
         let inGrace = false;
         let startFrom;
         if (daySet.has(today)) {
-          startFrom = today; // active today
+          // Completed today — active streak
+          startFrom = today;
         } else if (daySet.has(yesterday)) {
-          startFrom = yesterday; // grace period — completed yesterday, not today yet
+          // Missed today but completed yesterday — today is the grace day
+          startFrom = yesterday;
+          inGrace = true;
+        } else if (daySet.has(twoDaysAgo) && !daySet.has(yesterday)) {
+          // Completed two days ago, missed yesterday — yesterday was the miss,
+          // today is the grace day (one extra day to recover)
+          startFrom = twoDaysAgo;
           inGrace = true;
         } else {
-          return { streak: 0, inGrace: false, daySet: days }; // streak broken
+          // Missed two or more consecutive days — streak broken
+          return { streak: 0, inGrace: false, daySet: days };
         }
         // Count consecutive days backwards from startFrom
         let streak = 0;
