@@ -244,7 +244,7 @@
 
   .total-card{background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:var(--radius-lg);padding:.9rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between}
   .total-label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--accent-light);margin-bottom:3px;opacity:.8}
-  .total-val{font-size:28px;font-weight:700;color:var(--text-primary);line-height:1;letter-spacing:-.5px}
+  .total-val{font-size:28px;font-weight:700;color:#fff;line-height:1;letter-spacing:-.5px}
   .total-unit{font-size:13px;font-weight:500;color:var(--accent-light);margin-left:4px;opacity:.7}
   .total-icon{width:40px;height:40px;border-radius:50%;background:var(--accent-bg-lite);display:flex;align-items:center;justify-content:center}
   .total-icon svg{color:var(--accent-mid)}
@@ -264,15 +264,14 @@
   .nav-today-btn:hover{border-color:var(--accent-mid);color:var(--accent-light);background:var(--accent-bg)}
 
   /* ── Week strip ── */
-  .week-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:1.5rem}
-  .day-flame{font-size:9px;line-height:1;display:block;text-align:center;margin-bottom:-1px}
-  .day-pill{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px 6px;border-radius:var(--radius-lg);border:1px solid var(--border-light);background:var(--bg-card);cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+  .day-flame{font-size:10px;line-height:1;display:block;text-align:center;margin-bottom:-2px}
+  .day-pill{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 7px;border-radius:var(--radius-lg);border:1px solid var(--border-light);background:var(--bg-card);cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
   .day-pill:hover{border-color:var(--accent-deep)}
   .day-pill.active{background:var(--accent-bg);border-color:var(--accent-mid)}
   .day-label{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
-  .day-pill.active .day-label{color:var(--accent-mid)}
+  .day-pill.active .day-label{color:var(--accent-light)}
   .day-num{font-size:16px;font-weight:500;color:var(--text-primary)}
-  .day-pill.active .day-num{color:var(--accent-deep)}
+  .day-pill.active .day-num{color:#fff}
   .day-pts{font-size:10px;font-weight:600;color:var(--accent-mid);min-height:13px}
 
   /* ── Section heads ── */
@@ -840,41 +839,39 @@
       </div>
     </div>
 
-    <div class="section-head">Assigned Tasks <span class="section-badge assigned">From partner</span></div>
+    <div class="section-head">Assigned tasks <span class="section-badge assigned">With deadline</span></div>
     <div class="tasks-list" id="assignedList"></div>
 
-    <div class="section-head">Monthly Goals <span class="section-badge monthly">This month</span></div>
+    <div class="section-head">Monthly tasks <span class="section-badge monthly">This month</span></div>
     <div class="tasks-list" id="monthlyList"></div>
 
-    <div class="section-head" style="margin-top:.25rem">Daily Tasks <span class="section-badge daily">Today</span></div>
+    <div class="section-head" style="margin-top:.25rem">Daily tasks <span class="section-badge daily">Today</span></div>
     <div class="tasks-list" id="dailyList"></div>
 
     <div id="addTaskSection">
       <hr class="divider"/>
-      <div class="section-head" id="addTaskHeading">Add a task</div>
+      <div class="section-head">Add a task</div>
       <div class="add-form">
         <div>
-          <label>Type</label>
+          <label>Task type</label>
           <div class="type-toggle">
-            <button class="type-btn active-daily" id="btn-daily" onclick="setType('daily')">📋 Task</button>
-            <button class="type-btn" id="btn-monthly" onclick="setType('monthly')">🎯 Goal</button>
+            <button class="type-btn active-daily" id="btn-daily"   onclick="setType('daily')">Daily</button>
+            <button class="type-btn"              id="btn-repeat"  onclick="setType('repeat')">↻ Repeats</button>
+            <button class="type-btn"              id="btn-monthly" onclick="setType('monthly')">Monthly</button>
+            <button class="type-btn"              id="btn-assigned" onclick="setType('assigned')">⚑ Assign</button>
           </div>
         </div>
-        <div><label for="taskName">Name</label><input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80"/></div>
+        <div><label for="taskName">Task name</label><input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80"/></div>
         <div><label for="taskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="taskDesc" rows="2" placeholder="Any notes or details…" maxlength="200"></textarea></div>
-        <!-- Custom expiry for tasks (optional) -->
-        <div id="taskExpiryRow" style="display:none">
-          <label for="taskExpiry" id="taskExpiryLabel">Expires on</label>
-          <input type="date" id="taskExpiry"/>
-        </div>
-        <!-- Repeating toggle — shown for both Task and Goal -->
-        <div class="proof-toggle-row" id="repeatToggleRow">
-          <span class="proof-toggle-label" id="repeatToggleLabel">Repeating — resets daily</span>
-          <label class="toggle"><input type="checkbox" id="taskRepeating"/><span class="toggle-slider"></span></label>
+        <div class="assigned-fields" id="assignedFields">
+          <div><label for="taskExpiry">Expires on</label><input type="date" id="taskExpiry"/></div>
         </div>
         <div id="proofToggleRow" class="proof-toggle-row">
-          <span class="proof-toggle-label">Require photo proof</span>
-          <label class="toggle"><input type="checkbox" id="requireProof" onchange="toggleProofReviewer()"/><span class="toggle-slider"></span></label>
+          <span class="proof-toggle-label">Require photo proof to complete</span>
+          <label class="toggle">
+            <input type="checkbox" id="requireProof" onchange="toggleProofReviewer()"/>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
         <div id="proofReviewerRow" style="display:none">
           <label for="proofReviewer">Who reviews the proof?</label>
@@ -885,7 +882,7 @@
           <select id="taskVisibleTo"></select>
         </div>
         <div class="form-row">
-          <div><label for="taskPts">Points</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
+          <div><label for="taskPts">Point value</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
           <div style="display:flex;flex-direction:column;justify-content:flex-end">
             <button class="add-btn" onclick="addTask()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1351,45 +1348,27 @@ async function loadStreak() {
 function renderStreak() {
   const pill = document.getElementById('streakPill');
   const badge = document.getElementById('streakBadge');
-  pill.style.display = 'none';
-
-  if (isOwnProfile()) {
-    const { streak, inGrace, duoStreak } = streakData;
-    if (streak === 0 && !inGrace) return;
-    pill.style.display = 'flex';
-    let flameHtml, label;
-    if (duoStreak) {
-      flameHtml = `<span style="font-size:16px">🔵</span>`;
-      label = `<span style="color:#4a90d9;font-weight:700">${streak} day duo streak 🔥</span>`;
-    } else if (inGrace) {
-      flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
-      label = `<span style="color:var(--text-muted)">${streak > 0 ? streak + ' day streak — ' : ''}Complete a task to keep the streak alive!</span>`;
-    } else {
-      flameHtml = `<span style="font-size:16px">🔥</span>`;
-      label = `<span style="color:#e87040;font-weight:700">${streak} day streak</span>`;
-    }
-    badge.innerHTML = `${flameHtml} ${label}`;
+  if (!isOwnProfile()) { pill.style.display = 'none'; return; }
+  const { streak, inGrace, duoStreak } = streakData;
+  if (streak === 0 && !inGrace) { pill.style.display = 'none'; return; }
+  pill.style.display = 'flex';
+  let flame, color, label;
+  if (duoStreak) {
+    flame = '🔵'; color = '#4a90d9';
+    label = `${streak} day duo streak`;
+  } else if (inGrace && streak === 0) {
+    flame = '❄️'; color = '#90c8e8';
+    label = `Streak on ice — complete a task today!`;
+  } else if (inGrace) {
+    flame = '❄️'; color = '#90c8e8';
+    label = `${streak} day streak — on thin ice!`;
   } else {
-    // Partner's profile — show their streak
-    const ps = streakData.partnerStreak;
-    const pi = streakData.partnerInGrace;
-    if (!ps && !pi) return;
-    pill.style.display = 'flex';
-    const name = currentUser.partnerNickname || 'Partner';
-    let flameHtml, label;
-    if (streakData.duoStreak) {
-      flameHtml = `<span style="font-size:16px">🔵</span>`;
-      label = `<span style="color:#4a90d9;font-weight:700">${ps} day duo streak 🔥</span>`;
-    } else if (pi) {
-      flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
-      label = `<span style="color:var(--text-muted)">${ps > 0 ? ps + ' day streak — ' : ''}${name} needs to complete a task today!</span>`;
-    } else {
-      flameHtml = `<span style="font-size:16px">🔥</span>`;
-      label = `<span style="color:#e87040;font-weight:700">${name} is on a ${ps} day streak</span>`;
-    }
-    badge.innerHTML = `${flameHtml} ${label}`;
+    flame = '🔥'; color = '#e87040';
+    label = `${streak} day streak`;
   }
-  renderWeek();
+  badge.innerHTML = `<span style="font-size:16px">${flame}</span> <span style="color:${color}">${label}</span>`;
+  // Re-render week strip with updated flame data
+  renderWeekStrip();
 }
 
 async function loadBalances() {
@@ -1530,46 +1509,11 @@ function shiftDay(delta) {
 }
 function goToday() { selectedDate=getTodayKey(); renderTracker(); }
 function setType(t) {
-  addType = t;
-  // Update button active states — only daily and monthly buttons exist now
-  ['daily','monthly'].forEach(x => {
-    const btn = document.getElementById('btn-'+x);
-    if (btn) btn.className = 'type-btn' + (x===t ? ' active-'+x : '');
+  addType=t;
+  ['daily','repeat','monthly','assigned'].forEach(x=>{
+    document.getElementById('btn-'+x).className='type-btn'+(x===t?' active-'+x:'');
   });
-  const isAssigned = t === 'assigned';
-  const isMonthly  = t === 'monthly';
-  const isDaily    = t === 'daily';
-  // Expiry row — show for assigned (required), optional for daily
-  const expiryRow = document.getElementById('taskExpiryRow');
-  const expiryLabel = document.getElementById('taskExpiryLabel');
-  if (isAssigned) {
-    expiryRow.style.display = '';
-    expiryLabel.textContent = 'Expires on (required)';
-    document.getElementById('taskExpiry').required = true;
-  } else if (isDaily) {
-    expiryRow.style.display = '';
-    expiryLabel.textContent = 'Custom expiry (optional — defaults to today)';
-    document.getElementById('taskExpiry').required = false;
-  } else {
-    expiryRow.style.display = 'none';
-    document.getElementById('taskExpiry').value = '';
-    document.getElementById('taskExpiry').required = false;
-  }
-  // Repeating toggle — show for all, update label
-  const repeatLabel = document.getElementById('repeatToggleLabel');
-  if (isMonthly) {
-    repeatLabel.textContent = 'Repeating — resets every month';
-  } else if (isAssigned) {
-    document.getElementById('repeatToggleRow').style.display = 'none';
-  } else {
-    repeatLabel.textContent = 'Repeating — resets daily';
-    document.getElementById('repeatToggleRow').style.display = '';
-  }
-  // Section heading
-  const heading = document.getElementById('addTaskHeading');
-  if (isAssigned) heading.textContent = 'Assign a task';
-  else if (isMonthly) heading.textContent = 'Add a goal';
-  else heading.textContent = 'Add a task';
+  document.getElementById('assignedFields').className='assigned-fields'+(t==='assigned'?' visible':'');
 }
 
 // ── Profile switcher render ────────────────────────────────────
@@ -1807,12 +1751,10 @@ function renderTracker() {
   }
   // Always show add task section and all task types — no permissions needed
   document.getElementById('addTaskSection').style.display = 'block';
-  document.getElementById('btn-daily').style.display    = '';
-  document.getElementById('btn-monthly').style.display  = '';
-  // On partner profile, daily task = assigned task, so reset if needed
-  if (!isOwnProfile() && addType === 'assigned') addType = 'daily';
-  if (isOwnProfile() && addType === 'assigned') addType = 'daily';
-  setType(addType);
+  document.getElementById('btn-daily').style.display   = '';
+  document.getElementById('btn-repeat').style.display  = '';
+  document.getElementById('btn-monthly').style.display = '';
+  document.getElementById('btn-assigned').style.display = isOwnProfile() ? 'none' : '';
   // Notice when viewing partner's profile
   const existing = document.getElementById('readonlyNotice');
   if (existing) existing.remove();
@@ -1830,16 +1772,11 @@ function renderAssigned() {
   list.innerHTML = '';
   const today = getTodayKey();
   const p = ps();
-  // On own profile: only show tasks assigned TO me by my partner (not ones I created)
-  // On partner's profile: show all their assigned tasks (including ones I assigned them)
-  const baseAssigned = isOwnProfile()
-    ? (p.assigned||[]).filter(t => t.createdBy !== currentUser.userId)
-    : (p.assigned||[]);
-  const visible = baseAssigned.filter(t=>{
+  const visible = (p.assigned||[]).filter(t=>{
     if (t.completedOn) return t.completedOn===selectedDate;
     return t.expiresOn>=selectedDate;
   });
-  const expiredUncompleted = baseAssigned.filter(t=>{
+  const expiredUncompleted = (p.assigned||[]).filter(t=>{
     if (t.completedOn) return false;
     return t.expiresOn<selectedDate && t.assignedOn<=selectedDate;
   });
@@ -1855,19 +1792,13 @@ function renderAssigned() {
     if (!isDone) {
       const exp=dateFromKey(t.expiresOn),now=dateFromKey(today);
       const diffDays=Math.round((exp-now)/86400000);
-      if (isExpired){
-        expiryLabel='Expired';expiryCls='expired';
-      }
+      if (isExpired){expiryLabel='Expired';expiryCls='expired';}
       else if (diffDays===0){expiryLabel='Expires today';expiryCls='soon';}
       else if (diffDays===1){expiryLabel='Expires tomorrow';expiryCls='soon';}
       else if (diffDays<=3){expiryLabel=`${diffDays}d left`;expiryCls='soon';}
       else{expiryLabel=`Due ${new Date(exp.getTime()).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;expiryCls='ok';}
     }
-    const expiryTag = !isDone
-      ? isExpired
-        ? `<span class="expiry-tag expired" style="cursor:pointer" onclick="showExpiredOptions('${t.id}')" title="Click to reassign or delete">Expired — tap to reassign</span>`
-        : `<span class="expiry-tag ${expiryCls}">${expiryLabel}</span>`
-      : '';
+    const expiryTag=!isDone?`<span class="expiry-tag ${expiryCls}">${expiryLabel}</span>`:'';
     const rowExtra='assigned-row'+(expiryCls==='soon'?' expiring-soon':'');
     // Own profile = can check off. Partner's assigned tasks viewed by partner = can check. Viewing partner's profile = read only
     const canCheck = isOwnProfile() && !isExpired;
@@ -1920,7 +1851,6 @@ function renderMonthly() {
         await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
           body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: nowDone, taskType: 'monthly' }) });
         await loadBalances(); renderTotals();
-        await onTaskChecked(nowDone);
       },
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1947,7 +1877,6 @@ function renderDaily() {
         await fetch('/api/task/complete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
           body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: nowDone, taskType: 'repeat' }) });
         await loadBalances(); renderTotals();
-        await onTaskChecked(nowDone);
       },
       onDelete:()=>{ deleteTaskFrom(t.id, selectedDate); }
     });
@@ -1980,7 +1909,6 @@ function renderDaily() {
           body: JSON.stringify({ taskId: t.id, dateKey: selectedDate, done: newDone, taskType: 'daily' })
         });
         await loadBalances(); renderTotals();
-        await onTaskChecked(newDone);
       },
       onDelete:()=>{ deleteTask(t.id); }
     });
@@ -1995,23 +1923,22 @@ function renderWeek() {
   const sel=dateFromKey(selectedDate),dow=sel.getDay();
   const today = getTodayKey();
   const yesterday = keyFromDate(new Date(Date.now()-86400000));
-  // Use own or partner streak days depending on which profile we're viewing
-  const activeDays = isOwnProfile() ? (streakData.days || []) : (streakData.partnerDays || []);
-  const inGrace = isOwnProfile() ? streakData.inGrace : streakData.partnerInGrace;
-  const streakDays = new Set(activeDays);
+  const streakDays = new Set(streakData.days || []);
   for(let i=0;i<7;i++){
     const d=new Date(sel);d.setDate(sel.getDate()-dow+i);
     const key=keyFromDate(d),pts=getDayPoints(key);
     const pill=document.createElement('div');
     pill.className='day-pill'+(key===selectedDate?' active':'');
-    // Flame indicator
+    // Flame/ice indicator
     let flameEl = '';
-    if (key <= today) {
+    if (isOwnProfile() && key <= today) {
       if (streakDays.has(key)) {
-        const flameIcon = streakData.duoStreak ? '🔵' : '🔥';
-        flameEl = `<span class="day-flame">${flameIcon}</span>`;
-      } else if (key === today && inGrace) {
-        flameEl = `<span class="day-flame" style="opacity:.3">🔥</span>`;
+        const color = streakData.duoStreak ? '#4a90d9' : '#e87040';
+        flameEl = `<span class="day-flame" style="color:${color}">🔥</span>`;
+      } else if (key === today && streakData.inGrace) {
+        flameEl = `<span class="day-flame">❄️</span>`;
+      } else if (key === yesterday && streakData.inGrace && !streakDays.has(yesterday)) {
+        flameEl = `<span class="day-flame">❄️</span>`;
       }
     }
     pill.innerHTML=`<span class="day-label">${dn[d.getDay()]}</span>${flameEl}<span class="day-num">${d.getDate()}</span><span class="day-pts">${pts>0?pts:''}</span>`;
@@ -2126,21 +2053,16 @@ function renderShop() {
       partnerItems.forEach(item => {
         const el = document.createElement('div');
         el.className = 'shop-item';
-        // Use same vis-icon style as tasks — themed partner icon or everyone icon
-        const themeSwatches = { rose:'#d4537e', midnight:'#4a90d9', ember:'#d94040', forest:'#3aad60', violet:'#8040d9', gold:'#d4a020', slate:'#6080b0', teal:'#20b8b0', sakura:'#e0427a' };
-        let scopeLabel;
-        if (item.visibleTo === currentUser.partnerId) {
-          const color = themeSwatches[currentUser.partnerTheme||'rose'] || '#d4537e';
-          const name  = currentUser.partnerNickname || 'Partner';
-          const icon  = currentUser.partnerIcon || 'star';
-          scopeLabel = `<span class="vis-icon" title="Only ${esc(name)} can see this" style="background:none;color:${color}">${iconSVG(icon,12)}</span>`;
-        } else {
-          scopeLabel = `<span class="vis-icon" title="Visible to all partners"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>`;
-        }
+        const scopeLabel = item.visibleTo === currentUser.partnerId
+          ? `<span class="section-badge assigned" style="font-size:9px">🔒 ${esc(currentUser.partnerNickname||'Partner')} only</span>`
+          : item.visibleTo
+            ? `<span class="section-badge assigned" style="font-size:9px">🔒 Private</span>`
+            : `<span class="section-badge repeat" style="font-size:9px">👁 Everyone</span>`;
         el.innerHTML = `
           <div class="shop-item-body">
-            <div class="shop-item-name">${esc(item.name)} ${scopeLabel}</div>
+            <div class="shop-item-name">${esc(item.name)}</div>
             ${item.desc?`<div class="shop-item-desc">${esc(item.desc)}</div>`:''}
+            <div style="margin-top:4px">${scopeLabel}</div>
           </div>
           <div class="shop-item-right">
             <span class="shop-cost">${item.cost} pts</span>
@@ -2561,89 +2483,45 @@ async function saveProfile() {
 
 // ── Add task ───────────────────────────────────────────────────
 function addTask() {
-  const name = document.getElementById('taskName').value.trim();
-  const desc = document.getElementById('taskDesc').value.trim();
-  const pts  = parseInt(document.getElementById('taskPts').value);
-  if (!name) { document.getElementById('taskName').focus(); return; }
-  if (!pts || pts < 1) { document.getElementById('taskPts').focus(); return; }
+  const name=document.getElementById('taskName').value.trim();
+  const desc=document.getElementById('taskDesc').value.trim();
+  const pts=parseInt(document.getElementById('taskPts').value);
+  if(!name){document.getElementById('taskName').focus();return;}
+  if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
   const requireProof = document.getElementById('requireProof').checked;
-  const repeating    = document.getElementById('taskRepeating').checked;
-  const visibleToEl  = document.getElementById('taskVisibleTo');
-  const visibleTo    = !isOwnProfile() ? currentUser.userId : (visibleToEl ? (visibleToEl.value || null) : null);
-  const createdBy    = currentUser.userId;
+  const visibleToEl = document.getElementById('taskVisibleTo');
+  const visibleTo = !isOwnProfile() ? currentUser.userId : (visibleToEl ? (visibleToEl.value || null) : null);
+  const createdBy = currentUser.userId;
   let toastMsg = '';
-
-  if (addType === 'monthly') {
-    if (repeating) {
-      // Repeating monthly goal — resets every month
-      ps().repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
-        requireProof, visibleTo, createdBy, isMonthly:true });
-      toastMsg = '🎯 Repeating monthly goal added';
-    } else {
-      const mk = monthKey(selectedDate);
-      if (!ps().monthly[mk]) ps().monthly[mk] = [];
-      ps().monthly[mk].push({ id:uid(), name, desc, pts, requireProof, visibleTo, createdBy });
-      toastMsg = '🎯 Monthly goal added';
-    }
-  } else if (addType === 'assigned') {
-    const expiry = document.getElementById('taskExpiry').value;
-    if (!expiry) { document.getElementById('taskExpiry').focus(); return; }
-    const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
-      completedOn:null, requireProof, visibleTo, createdBy };
+  if(addType==='monthly'){
+    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];
+    ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof,visibleTo,createdBy});
+    toastMsg = '📅 Monthly task added';
+  } else if(addType==='repeat'){
+    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof,visibleTo,createdBy});
+    toastMsg = '↻ Repeating task added';
+  } else if(addType==='assigned'){
+    const expiry=document.getElementById('taskExpiry').value;
+    if(!expiry){document.getElementById('taskExpiry').focus();return;}
+    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof,visibleTo,createdBy};
     ps(viewingProfile).assigned.push(task);
-    document.getElementById('taskExpiry').value = '';
-    notifyAssigned(task, expiry);
-    toastMsg = `⚑ Task assigned to ${currentUser.partnerNickname || 'partner'}`;
-    // Immediately save so partner sees it
-    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    document.getElementById('taskExpiry').value='';
+    notifyAssigned(task,expiry);
+    const targetName = isOwnProfile() ? 'yourself' : (currentUser.partnerNickname || 'partner');
+    toastMsg = `⚑ Task assigned to ${targetName}`;
+    // Immediately save assigned tasks so partner sees them without refreshing
+    clearTimeout(saveTimer); saveTimer = null;
     saveToServer();
   } else {
-    // Daily task
-    if (repeating) {
-      // Repeating tasks go to repeating list regardless of whose profile
-      ps(viewingProfile).repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
-        requireProof, visibleTo, createdBy });
-      toastMsg = '↻ Repeating task added';
-      if (!isOwnProfile()) {
-        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-        saveToServer();
-      }
-    } else if (!isOwnProfile()) {
-      // Non-repeating task on partner's profile = assigned with expiry
-      const expiry = document.getElementById('taskExpiry').value || selectedDate;
-      const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
-        completedOn:null, requireProof, visibleTo, createdBy };
-      ps(viewingProfile).assigned.push(task);
-      document.getElementById('taskExpiry').value = '';
-      notifyAssigned(task, expiry);
-      toastMsg = `⚑ Task assigned to ${currentUser.partnerNickname || 'partner'}`;
-      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-      saveToServer();
-    } else {
-      // Own profile non-repeating daily task
-      const expiry = document.getElementById('taskExpiry').value;
-      if (expiry && expiry !== selectedDate) {
-        const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
-          completedOn:null, requireProof, visibleTo, createdBy };
-        ps().assigned.push(task);
-        toastMsg = `✓ Task added (expires ${expiry})`;
-      } else {
-        getDayTasks(selectedDate).push({ id:uid(), name, desc, pts, done:false,
-          requireProof, visibleTo, createdBy });
-        toastMsg = '✓ Task added';
-      }
-    }
+    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof,visibleTo,createdBy});
+    toastMsg = '✓ Task added';
   }
-
-  // Reset form
-  document.getElementById('taskName').value = '';
-  document.getElementById('taskDesc').value = '';
-  document.getElementById('taskPts').value  = '';
-  document.getElementById('taskExpiry').value = '';
-  document.getElementById('requireProof').checked  = false;
-  document.getElementById('taskRepeating').checked = false;
-  document.getElementById('proofReviewerRow').style.display = 'none';
-  scheduleSave(); renderTracker();
+  document.getElementById('taskName').value='';
+  document.getElementById('taskDesc').value='';
+  document.getElementById('taskPts').value='';
+  document.getElementById('requireProof').checked=false;
+  document.getElementById('proofReviewerRow').style.display='none';
+  scheduleSave();renderTracker();
   toast(toastMsg, 'success');
   document.getElementById('taskName').focus();
 }
@@ -2687,53 +2565,9 @@ async function notifyAssigned(task, expiresOn) {
 }
 
 // ── Task deletion helpers ──────────────────────────────────────
-function showExpiredOptions(taskId) {
-  const p = ps(viewingProfile);
-  const t = (p.assigned||[]).find(x => x.id === taskId);
-  if (!t) return;
-  // Remove any existing popup
-  const existing = document.getElementById('expiredPopup');
-  if (existing) existing.remove();
-  const popup = document.createElement('div');
-  popup.id = 'expiredPopup';
-  popup.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:flex;align-items:center;justify-content:center;padding:1.5rem`;
-  popup.innerHTML = `
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;width:100%;max-width:340px">
-      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Task expired</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">${esc(t.name)}</div>
-      <label style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px">New expiry date</label>
-      <input type="date" id="reassignDate" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-family:inherit;font-size:14px;padding:10px 12px;outline:none;box-sizing:border-box;margin-bottom:1rem"/>
-      <div style="display:flex;gap:8px">
-        <button onclick="confirmReassign('${taskId}')" style="flex:1;padding:10px;background:var(--accent-mid);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer">Reassign</button>
-        <button onclick="deleteTask('${taskId}');document.getElementById('expiredPopup')?.remove()" style="padding:10px 14px;background:transparent;color:#e06060;border:1px solid #5a2020;border-radius:var(--radius-md);font-size:13px;cursor:pointer">Delete</button>
-        <button onclick="document.getElementById('expiredPopup').remove()" style="padding:10px 14px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius-md);font-size:13px;cursor:pointer">Cancel</button>
-      </div>
-    </div>`;
-  document.body.appendChild(popup);
-  popup.onclick = e => { if (e.target === popup) popup.remove(); };
-  // Default to tomorrow
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
-  document.getElementById('reassignDate').value = tomorrow;
-}
-
-function confirmReassign(taskId) {
-  const newDate = document.getElementById('reassignDate')?.value;
-  if (!newDate) return;
-  const p = ps(viewingProfile);
-  const idx = p.assigned.findIndex(x => x.id === taskId);
-  if (idx >= 0) {
-    p.assigned[idx].expiresOn = newDate;
-    p.assigned[idx].completedOn = null;
-    scheduleSave();
-    renderTracker();
-    toast(`✓ Task reassigned until ${newDate}`, 'success');
-  }
-  document.getElementById('expiredPopup')?.remove();
-}
-
 async function deleteTask(taskId) {
-  // Save any pending state first so we don't accidentally re-create the task
-  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await saveToServer(); }
+  // Cancel any pending save first — prevents re-inserting the deleted task
+  clearTimeout(saveTimer); saveTimer = null;
   const p = ps(viewingProfile);
   p.assigned = (p.assigned||[]).filter(t=>t.id!==taskId);
   Object.keys(p.days||{}).forEach(dk=>{ if(p.days[dk].tasks) p.days[dk].tasks = p.days[dk].tasks.filter(t=>t.id!==taskId); });
@@ -2742,8 +2576,10 @@ async function deleteTask(taskId) {
   renderTracker();
   toast('🗑 Task deleted', 'info');
   try {
-    await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    const res = await fetch('/api/task/delete', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body:JSON.stringify({ taskId, ownerProfile: viewingProfile }) });
+    const data = await res.json();
+
     await loadFromServer();
   } catch(e) { console.error('Delete failed:', e); toast('Delete failed', 'error'); }
 }
@@ -3026,68 +2862,8 @@ document.getElementById('loginEmail').addEventListener('keydown',e=>{if(e.key===
 document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
 // ── Immediate sync after cross-user actions ────────────────────
-function launchConfetti() {
-  const colors = ['#d4537e','#f4c0d1','#4a90d9','#a8c8f0','#e87040','#ffd700','#6abf6a','#c084fc','#ff6b6b','#ffa500'];
-  // Get streak pill position as burst origin
-  const pill = document.getElementById('streakPill');
-  const rect = pill ? pill.getBoundingClientRect() : null;
-  const originX = rect ? (rect.left + rect.width / 2) : window.innerWidth / 2;
-  const originY = rect ? (rect.top + rect.height / 2) : 100;
-  const count = 90;
-  for (let i = 0; i < count; i++) {
-    const el = document.createElement('div');
-    const size = Math.random() * 9 + 4;
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    const angle = Math.random() * 360;
-    const speed = Math.random() * 400 + 200;
-    const spread = (Math.random() - 0.5) * window.innerWidth * 1.2;
-    const fallHeight = Math.random() * window.innerHeight * 0.8 + 200;
-    const duration = Math.random() * 1200 + 800;
-    const isCircle = Math.random() > 0.4;
-    el.style.cssText = `position:fixed;top:${originY}px;left:${originX}px;width:${size}px;height:${size}px;
-      background:${color};border-radius:${isCircle?'50%':'2px'};pointer-events:none;z-index:9999;
-      transform:rotate(${angle}deg);opacity:1`;
-    document.body.appendChild(el);
-    el.animate([
-      { transform:`rotate(${angle}deg) translate(0,0)`, opacity:1 },
-      { transform:`rotate(${angle + 540 * (Math.random()>0.5?1:-1)}deg) translate(${spread}px,${fallHeight}px)`, opacity:0 }
-    ], { duration, easing:'cubic-bezier(0.2,0.8,0.4,1)', fill:'forwards' })
-      .onfinish = () => el.remove();
-  }
-}
-
-async function onTaskChecked(newDone) {
-  if (!newDone || selectedDate !== getTodayKey()) return;
-  const prevStreak = streakData.streak;
-  const wasGrace = streakData.inGrace;
-  // Small delay to ensure DB write has committed before querying streak
-  await new Promise(r => setTimeout(r, 300));
-  await loadStreak();
-  renderStreak();
-  // Fire confetti if streak just started, incremented, or was saved from grace
-  const streakIncreased = streakData.streak > prevStreak;
-  const graceSaved = wasGrace && !streakData.inGrace;
-  if (streakData.streak > 0 && (streakIncreased || graceSaved)) {
-    launchConfetti();
-    if (graceSaved) {
-      toast(`🔥 Streak saved! ${streakData.streak} days`, 'success');
-    } else if (streakData.streak === 1) {
-      toast('🔥 Streak started! Keep it going!', 'success');
-    } else if (streakData.duoStreak) {
-      toast(`🔵🔥 Duo streak! ${streakData.streak} days together!`, 'success');
-    } else {
-      toast(`🔥 ${streakData.streak} day streak!`, 'success');
-    }
-  }
-}
-
 async function syncNow() {
-  // Always save any pending changes BEFORE reloading — prevents data loss
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    await saveToServer();
-  }
+  clearTimeout(saveTimer); saveTimer = null;
   await loadFromServer();
   await loadBalances();
   await loadStreak();
