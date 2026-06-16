@@ -1256,61 +1256,62 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       async function calcStreak(uid) {
-        // Use DB timezone-aware dates — convert to Eastern time for day boundaries
         const r = await db.query(`
-          SELECT DISTINCT (completed_on AT TIME ZONE 'America/New_York')::date as day
+          SELECT DISTINCT completed_on::date as day
           FROM task_completions
-          WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
+          WHERE completed_by=$1
             AND completed_on IS NOT NULL
+            AND completed_on >= (CURRENT_DATE - INTERVAL '90 days')::text
           UNION
-          SELECT DISTINCT (completed_on AT TIME ZONE 'America/New_York')::date as day
+          SELECT DISTINCT completed_on::date as day
           FROM monthly_completions
-          WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
+          WHERE completed_by=$1
             AND completed_on IS NOT NULL
+            AND completed_on >= (CURRENT_DATE - INTERVAL '90 days')::text
           ORDER BY day DESC
         `, [uid]);
-        const days = r.rows.map(r => r.day.toISOString().slice(0,10));
+        const days = r.rows.map(r => {
+          // completed_on is stored as YYYY-MM-DD text, just return it directly
+          const d = r.day;
+          if (typeof d === 'string') return d.slice(0,10);
+          return d.toISOString().slice(0,10);
+        });
         const daySet = new Set(days);
-        // Get today, yesterday, and two days ago in Eastern time
-        const tzRow = await db.query(`SELECT 
-          (NOW() AT TIME ZONE 'America/New_York')::date as today,
-          ((NOW() - INTERVAL '1 day') AT TIME ZONE 'America/New_York')::date as yesterday,
-          ((NOW() - INTERVAL '2 days') AT TIME ZONE 'America/New_York')::date as two_days_ago`);
-        const today     = tzRow.rows[0].today.toISOString().slice(0,10);
-        const yesterday = tzRow.rows[0].yesterday.toISOString().slice(0,10);
-        const twoDaysAgo = tzRow.rows[0].two_days_ago.toISOString().slice(0,10);
+
+        // Today and yesterday as simple date strings (no timezone needed — dates stored as local strings)
+        const now = new Date();
+        const pad = n => String(n).padStart(2,'0');
+        const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        const today = dateStr(now);
+        const yd = new Date(now); yd.setDate(yd.getDate()-1);
+        const yesterday = dateStr(yd);
+        const td = new Date(now); td.setDate(td.getDate()-2);
+        const twoDaysAgo = dateStr(td);
 
         let inGrace = false;
         let startFrom;
         if (daySet.has(today)) {
-          // Completed today — active streak
           startFrom = today;
         } else if (daySet.has(yesterday)) {
-          // Missed today but completed yesterday — today is the grace day
+          // Missed today — today is grace day
           startFrom = yesterday;
           inGrace = true;
         } else if (daySet.has(twoDaysAgo) && !daySet.has(yesterday)) {
-          // Completed two days ago, missed yesterday — yesterday was the miss,
-          // today is the grace day (one extra day to recover)
+          // Missed yesterday — yesterday was the miss, today is grace day
           startFrom = twoDaysAgo;
           inGrace = true;
         } else {
-          // Missed two or more consecutive days — streak broken
           return { streak: 0, inGrace: false, daySet: days };
         }
-        // Count consecutive days backwards from startFrom
         let streak = 0;
         let cursor = new Date(startFrom + 'T12:00:00Z');
         while (true) {
-          const dateStr = cursor.toISOString().slice(0,10);
-          if (daySet.has(dateStr)) {
+          const ds = dateStr(new Date(cursor.getTime()));
+          if (daySet.has(ds)) {
             streak++;
-            cursor = new Date(cursor - 86400000);
-          } else {
-            break;
-          }
+            cursor = new Date(cursor.getTime() - 86400000);
+          } else break;
         }
-        console.log(`Streak for ${uid}: days=${JSON.stringify(days)}, today=${today}, yesterday=${yesterday}, twoDaysAgo=${twoDaysAgo}, inGrace=${inGrace}, streak=${streak}`);
         return { streak, inGrace, daySet: days };
       }
 
@@ -1431,9 +1432,6 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
           // Delete only the completion for this specific date
           await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND completed_on=$3`,
             [taskId, userId, dateKey]);
-          // Also delete any completion without a date match (catches edge cases)
-          await db.query(`DELETE FROM task_completions WHERE task_id=$1 AND completed_by=$2 AND (proof_status IS NULL OR proof_status != 'approved')`,
-            [taskId, userId]);
         }
       }
       json(res, { ok: true });
