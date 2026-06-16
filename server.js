@@ -8,7 +8,7 @@ const PORT       = process.env.PORT || 3000;
 const HTML_FILE  = path.join(__dirname, 'index.html');
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
-console.log('Server v12 starting');
+console.log('Server v13 starting');
 
 // Clean up expired sessions periodically
 setInterval(async () => {
