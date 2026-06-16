@@ -264,8 +264,9 @@
   .nav-today-btn:hover{border-color:var(--accent-mid);color:var(--accent-light);background:var(--accent-bg)}
 
   /* ── Week strip ── */
-  .day-flame{font-size:10px;line-height:1;display:block;text-align:center;margin-bottom:-2px}
-  .day-pill{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 7px;border-radius:var(--radius-lg);border:1px solid var(--border-light);background:var(--bg-card);cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+  .week-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:1.5rem}
+  .day-flame{font-size:9px;line-height:1;display:block;text-align:center;margin-bottom:-1px}
+  .day-pill{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px 6px;border-radius:var(--radius-lg);border:1px solid var(--border-light);background:var(--bg-card);cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
   .day-pill:hover{border-color:var(--accent-deep)}
   .day-pill.active{background:var(--accent-bg);border-color:var(--accent-mid)}
   .day-label{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
@@ -1352,22 +1353,19 @@ function renderStreak() {
   const { streak, inGrace, duoStreak } = streakData;
   if (streak === 0 && !inGrace) { pill.style.display = 'none'; return; }
   pill.style.display = 'flex';
-  let flame, color, label;
+  let flameHtml, label;
   if (duoStreak) {
-    flame = '🔵'; color = '#4a90d9';
-    label = `${streak} day duo streak`;
-  } else if (inGrace && streak === 0) {
-    flame = '❄️'; color = '#90c8e8';
-    label = `Streak on ice — complete a task today!`;
+    flameHtml = `<span style="font-size:16px">🔵</span>`;
+    label = `<span style="color:#4a90d9;font-weight:700">${streak} day duo streak 🔥</span>`;
   } else if (inGrace) {
-    flame = '❄️'; color = '#90c8e8';
-    label = `${streak} day streak — on thin ice!`;
+    // Faded flame for grace — not ice
+    flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
+    label = `<span style="color:var(--text-muted)">${streak > 0 ? streak + ' day streak — ' : ''}Complete a task to keep the streak alive!</span>`;
   } else {
-    flame = '🔥'; color = '#e87040';
-    label = `${streak} day streak`;
+    flameHtml = `<span style="font-size:16px">🔥</span>`;
+    label = `<span style="color:#e87040;font-weight:700">${streak} day streak</span>`;
   }
-  badge.innerHTML = `<span style="font-size:16px">${flame}</span> <span style="color:${color}">${label}</span>`;
-  // Re-render week strip with updated flame data
+  badge.innerHTML = `${flameHtml} ${label}`;
   renderWeekStrip();
 }
 
@@ -1929,16 +1927,15 @@ function renderWeek() {
     const key=keyFromDate(d),pts=getDayPoints(key);
     const pill=document.createElement('div');
     pill.className='day-pill'+(key===selectedDate?' active':'');
-    // Flame/ice indicator
+    // Flame indicator
     let flameEl = '';
     if (isOwnProfile() && key <= today) {
       if (streakDays.has(key)) {
-        const color = streakData.duoStreak ? '#4a90d9' : '#e87040';
-        flameEl = `<span class="day-flame" style="color:${color}">🔥</span>`;
+        const flameColor = streakData.duoStreak ? '🔵' : '🔥';
+        flameEl = `<span class="day-flame">${flameColor}</span>`;
       } else if (key === today && streakData.inGrace) {
-        flameEl = `<span class="day-flame">❄️</span>`;
-      } else if (key === yesterday && streakData.inGrace && !streakDays.has(yesterday)) {
-        flameEl = `<span class="day-flame">❄️</span>`;
+        // Grace day — faded flame on today
+        flameEl = `<span class="day-flame" style="opacity:.3">🔥</span>`;
       }
     }
     pill.innerHTML=`<span class="day-label">${dn[d.getDay()]}</span>${flameEl}<span class="day-num">${d.getDate()}</span><span class="day-pts">${pts>0?pts:''}</span>`;

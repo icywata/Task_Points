@@ -1256,7 +1256,6 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
     if (!userId) { json(res, { error: 'Unauthorized' }, 401); return; }
     try {
       async function calcStreak(uid) {
-        // Get all days with any completion in last 90 days
         const r = await db.query(`
           SELECT DISTINCT completed_on::date as day FROM task_completions
           WHERE completed_by=$1 AND completed_on >= NOW() - INTERVAL '90 days'
@@ -1269,25 +1268,24 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
         const daySet = new Set(days);
         const today = new Date().toISOString().slice(0,10);
         const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        const twoDaysAgo = new Date(Date.now()-2*86400000).toISOString().slice(0,10);
-        // Build streak counting backwards from today
-        let streak = 0;
+        // Determine starting point for streak count
         let inGrace = false;
-        let check = today;
-        // If no completion today, check grace period
-        if (!daySet.has(today)) {
-          if (daySet.has(yesterday)) { inGrace = true; } // yesterday was done, today is grace day
-          else { return { streak: 0, inGrace: false, daySet: days }; } // streak broken
+        let startFrom;
+        if (daySet.has(today)) {
+          startFrom = today; // active today
+        } else if (daySet.has(yesterday)) {
+          startFrom = yesterday; // grace period — completed yesterday, not today yet
+          inGrace = true;
+        } else {
+          return { streak: 0, inGrace: false, daySet: days }; // streak broken
         }
-        // Count consecutive days
-        let cursor = new Date(today);
+        // Count consecutive days backwards from startFrom
+        let streak = 0;
+        let cursor = new Date(startFrom + 'T12:00:00Z');
         while (true) {
           const dateStr = cursor.toISOString().slice(0,10);
           if (daySet.has(dateStr)) {
             streak++;
-            cursor = new Date(cursor - 86400000);
-          } else if (inGrace && dateStr === yesterday && streak === 0) {
-            // Already handled above
             cursor = new Date(cursor - 86400000);
           } else {
             break;
