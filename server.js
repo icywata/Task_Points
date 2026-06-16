@@ -1303,15 +1303,19 @@ hr{border:none;border-top:1px solid #333;margin:1.5rem 0}
         FROM partnerships WHERE (user_a_id=$1 OR user_b_id=$1) AND status='active' LIMIT 1
       `, [userId]);
       let partnerStreak = null;
+      let partnerInGrace = false;
+      let partnerDays = [];
       let duoStreak = false;
       if (partnershipResult.rows.length) {
         const partnerId = partnershipResult.rows[0].partner_id;
         const theirs = await calcStreak(partnerId);
         partnerStreak = theirs.streak;
+        partnerInGrace = theirs.inGrace;
+        partnerDays = theirs.daySet;
         // Duo streak: both >= 3, neither in grace
         duoStreak = mine.streak >= 3 && theirs.streak >= 3 && !mine.inGrace && !theirs.inGrace;
       }
-      json(res, { streak: mine.streak, inGrace: mine.inGrace, duoStreak, partnerStreak, days: mine.daySet });
+      json(res, { streak: mine.streak, inGrace: mine.inGrace, duoStreak, partnerStreak, partnerInGrace, partnerDays, days: mine.daySet });
     } catch(e) { json(res, { error: e.message }, 500); }
     return;
   }

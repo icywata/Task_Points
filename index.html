@@ -1349,23 +1349,44 @@ async function loadStreak() {
 function renderStreak() {
   const pill = document.getElementById('streakPill');
   const badge = document.getElementById('streakBadge');
-  if (!isOwnProfile()) { pill.style.display = 'none'; return; }
-  const { streak, inGrace, duoStreak } = streakData;
-  if (streak === 0 && !inGrace) { pill.style.display = 'none'; return; }
-  pill.style.display = 'flex';
-  let flameHtml, label;
-  if (duoStreak) {
-    flameHtml = `<span style="font-size:16px">🔵</span>`;
-    label = `<span style="color:#4a90d9;font-weight:700">${streak} day duo streak 🔥</span>`;
-  } else if (inGrace) {
-    // Faded flame for grace — not ice
-    flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
-    label = `<span style="color:var(--text-muted)">${streak > 0 ? streak + ' day streak — ' : ''}Complete a task to keep the streak alive!</span>`;
+  pill.style.display = 'none';
+
+  if (isOwnProfile()) {
+    const { streak, inGrace, duoStreak } = streakData;
+    if (streak === 0 && !inGrace) return;
+    pill.style.display = 'flex';
+    let flameHtml, label;
+    if (duoStreak) {
+      flameHtml = `<span style="font-size:16px">🔵</span>`;
+      label = `<span style="color:#4a90d9;font-weight:700">${streak} day duo streak 🔥</span>`;
+    } else if (inGrace) {
+      flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
+      label = `<span style="color:var(--text-muted)">${streak > 0 ? streak + ' day streak — ' : ''}Complete a task to keep the streak alive!</span>`;
+    } else {
+      flameHtml = `<span style="font-size:16px">🔥</span>`;
+      label = `<span style="color:#e87040;font-weight:700">${streak} day streak</span>`;
+    }
+    badge.innerHTML = `${flameHtml} ${label}`;
   } else {
-    flameHtml = `<span style="font-size:16px">🔥</span>`;
-    label = `<span style="color:#e87040;font-weight:700">${streak} day streak</span>`;
+    // Partner's profile — show their streak
+    const ps = streakData.partnerStreak;
+    const pi = streakData.partnerInGrace;
+    if (!ps && !pi) return;
+    pill.style.display = 'flex';
+    const name = currentUser.partnerNickname || 'Partner';
+    let flameHtml, label;
+    if (streakData.duoStreak) {
+      flameHtml = `<span style="font-size:16px">🔵</span>`;
+      label = `<span style="color:#4a90d9;font-weight:700">${ps} day duo streak 🔥</span>`;
+    } else if (pi) {
+      flameHtml = `<span style="font-size:16px;opacity:.4">🔥</span>`;
+      label = `<span style="color:var(--text-muted)">${ps > 0 ? ps + ' day streak — ' : ''}${name} needs to complete a task today!</span>`;
+    } else {
+      flameHtml = `<span style="font-size:16px">🔥</span>`;
+      label = `<span style="color:#e87040;font-weight:700">${name} is on a ${ps} day streak</span>`;
+    }
+    badge.innerHTML = `${flameHtml} ${label}`;
   }
-  badge.innerHTML = `${flameHtml} ${label}`;
   renderWeek();
 }
 
@@ -1926,7 +1947,10 @@ function renderWeek() {
   const sel=dateFromKey(selectedDate),dow=sel.getDay();
   const today = getTodayKey();
   const yesterday = keyFromDate(new Date(Date.now()-86400000));
-  const streakDays = new Set(streakData.days || []);
+  // Use own or partner streak days depending on which profile we're viewing
+  const activeDays = isOwnProfile() ? (streakData.days || []) : (streakData.partnerDays || []);
+  const inGrace = isOwnProfile() ? streakData.inGrace : streakData.partnerInGrace;
+  const streakDays = new Set(activeDays);
   for(let i=0;i<7;i++){
     const d=new Date(sel);d.setDate(sel.getDate()-dow+i);
     const key=keyFromDate(d),pts=getDayPoints(key);
@@ -1934,12 +1958,11 @@ function renderWeek() {
     pill.className='day-pill'+(key===selectedDate?' active':'');
     // Flame indicator
     let flameEl = '';
-    if (isOwnProfile() && key <= today) {
+    if (key <= today) {
       if (streakDays.has(key)) {
-        const flameColor = streakData.duoStreak ? '🔵' : '🔥';
-        flameEl = `<span class="day-flame">${flameColor}</span>`;
-      } else if (key === today && streakData.inGrace) {
-        // Grace day — faded flame on today
+        const flameIcon = streakData.duoStreak ? '🔵' : '🔥';
+        flameEl = `<span class="day-flame">${flameIcon}</span>`;
+      } else if (key === today && inGrace) {
         flameEl = `<span class="day-flame" style="opacity:.3">🔥</span>`;
       }
     }
