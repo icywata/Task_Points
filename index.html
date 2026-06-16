@@ -840,39 +840,42 @@
       </div>
     </div>
 
-    <div class="section-head">Assigned tasks <span class="section-badge assigned">With deadline</span></div>
+    <div class="section-head">Assigned Tasks <span class="section-badge assigned">From partner</span></div>
     <div class="tasks-list" id="assignedList"></div>
 
-    <div class="section-head">Monthly tasks <span class="section-badge monthly">This month</span></div>
+    <div class="section-head">Monthly Goals <span class="section-badge monthly">This month</span></div>
     <div class="tasks-list" id="monthlyList"></div>
 
-    <div class="section-head" style="margin-top:.25rem">Daily tasks <span class="section-badge daily">Today</span></div>
+    <div class="section-head" style="margin-top:.25rem">Daily Tasks <span class="section-badge daily">Today</span></div>
     <div class="tasks-list" id="dailyList"></div>
 
     <div id="addTaskSection">
       <hr class="divider"/>
-      <div class="section-head">Add a task</div>
+      <div class="section-head" id="addTaskHeading">Add a task</div>
       <div class="add-form">
         <div>
-          <label>Task type</label>
+          <label>Type</label>
           <div class="type-toggle">
-            <button class="type-btn active-daily" id="btn-daily"   onclick="setType('daily')">Daily</button>
-            <button class="type-btn"              id="btn-repeat"  onclick="setType('repeat')">↻ Repeats</button>
-            <button class="type-btn"              id="btn-monthly" onclick="setType('monthly')">Monthly</button>
-            <button class="type-btn"              id="btn-assigned" onclick="setType('assigned')">⚑ Assign</button>
+            <button class="type-btn active-daily" id="btn-daily" onclick="setType('daily')">📋 Task</button>
+            <button class="type-btn" id="btn-monthly" onclick="setType('monthly')">🎯 Goal</button>
+            <button class="type-btn" id="btn-assigned" onclick="setType('assigned')" style="display:none">⚑ Assign</button>
           </div>
         </div>
-        <div><label for="taskName">Task name</label><input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80"/></div>
+        <div><label for="taskName">Name</label><input type="text" id="taskName" placeholder="e.g. Morning workout" maxlength="80"/></div>
         <div><label for="taskDesc">Description <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;opacity:.6">(optional)</span></label><textarea id="taskDesc" rows="2" placeholder="Any notes or details…" maxlength="200"></textarea></div>
-        <div class="assigned-fields" id="assignedFields">
-          <div><label for="taskExpiry">Expires on</label><input type="date" id="taskExpiry"/></div>
+        <!-- Custom expiry for tasks (optional) -->
+        <div id="taskExpiryRow" style="display:none">
+          <label for="taskExpiry" id="taskExpiryLabel">Expires on</label>
+          <input type="date" id="taskExpiry"/>
+        </div>
+        <!-- Repeating toggle — shown for both Task and Goal -->
+        <div class="proof-toggle-row" id="repeatToggleRow">
+          <span class="proof-toggle-label" id="repeatToggleLabel">Repeating — resets daily</span>
+          <label class="toggle"><input type="checkbox" id="taskRepeating"/><span class="toggle-slider"></span></label>
         </div>
         <div id="proofToggleRow" class="proof-toggle-row">
-          <span class="proof-toggle-label">Require photo proof to complete</span>
-          <label class="toggle">
-            <input type="checkbox" id="requireProof" onchange="toggleProofReviewer()"/>
-            <span class="toggle-slider"></span>
-          </label>
+          <span class="proof-toggle-label">Require photo proof</span>
+          <label class="toggle"><input type="checkbox" id="requireProof" onchange="toggleProofReviewer()"/><span class="toggle-slider"></span></label>
         </div>
         <div id="proofReviewerRow" style="display:none">
           <label for="proofReviewer">Who reviews the proof?</label>
@@ -883,7 +886,7 @@
           <select id="taskVisibleTo"></select>
         </div>
         <div class="form-row">
-          <div><label for="taskPts">Point value</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
+          <div><label for="taskPts">Points</label><input type="number" id="taskPts" placeholder="10" min="1" max="9999"/></div>
           <div style="display:flex;flex-direction:column;justify-content:flex-end">
             <button class="add-btn" onclick="addTask()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1528,11 +1531,46 @@ function shiftDay(delta) {
 }
 function goToday() { selectedDate=getTodayKey(); renderTracker(); }
 function setType(t) {
-  addType=t;
-  ['daily','repeat','monthly','assigned'].forEach(x=>{
-    document.getElementById('btn-'+x).className='type-btn'+(x===t?' active-'+x:'');
+  addType = t;
+  // Update button active states — only daily and monthly buttons exist now
+  ['daily','monthly','assigned'].forEach(x => {
+    const btn = document.getElementById('btn-'+x);
+    if (btn) btn.className = 'type-btn' + (x===t ? ' active-'+x : '');
   });
-  document.getElementById('assignedFields').className='assigned-fields'+(t==='assigned'?' visible':'');
+  const isAssigned = t === 'assigned';
+  const isMonthly  = t === 'monthly';
+  const isDaily    = t === 'daily';
+  // Expiry row — show for assigned (required), optional for daily
+  const expiryRow = document.getElementById('taskExpiryRow');
+  const expiryLabel = document.getElementById('taskExpiryLabel');
+  if (isAssigned) {
+    expiryRow.style.display = '';
+    expiryLabel.textContent = 'Expires on (required)';
+    document.getElementById('taskExpiry').required = true;
+  } else if (isDaily) {
+    expiryRow.style.display = '';
+    expiryLabel.textContent = 'Custom expiry (optional — defaults to today)';
+    document.getElementById('taskExpiry').required = false;
+  } else {
+    expiryRow.style.display = 'none';
+    document.getElementById('taskExpiry').value = '';
+    document.getElementById('taskExpiry').required = false;
+  }
+  // Repeating toggle — show for all, update label
+  const repeatLabel = document.getElementById('repeatToggleLabel');
+  if (isMonthly) {
+    repeatLabel.textContent = 'Repeating — resets every month';
+  } else if (isAssigned) {
+    document.getElementById('repeatToggleRow').style.display = 'none';
+  } else {
+    repeatLabel.textContent = 'Repeating — resets daily';
+    document.getElementById('repeatToggleRow').style.display = '';
+  }
+  // Section heading
+  const heading = document.getElementById('addTaskHeading');
+  if (isAssigned) heading.textContent = 'Assign a task';
+  else if (isMonthly) heading.textContent = 'Add a goal';
+  else heading.textContent = 'Add a task';
 }
 
 // ── Profile switcher render ────────────────────────────────────
@@ -1770,10 +1808,13 @@ function renderTracker() {
   }
   // Always show add task section and all task types — no permissions needed
   document.getElementById('addTaskSection').style.display = 'block';
-  document.getElementById('btn-daily').style.display   = '';
-  document.getElementById('btn-repeat').style.display  = '';
-  document.getElementById('btn-monthly').style.display = '';
+  document.getElementById('btn-daily').style.display    = '';
+  document.getElementById('btn-monthly').style.display  = '';
   document.getElementById('btn-assigned').style.display = isOwnProfile() ? 'none' : '';
+  // If on partner profile, default to assign
+  if (!isOwnProfile() && addType === 'daily') { addType = 'assigned'; }
+  if (isOwnProfile() && addType === 'assigned') { addType = 'daily'; }
+  setType(addType);
   // Notice when viewing partner's profile
   const existing = document.getElementById('readonlyNotice');
   if (existing) existing.remove();
@@ -2511,45 +2552,73 @@ async function saveProfile() {
 
 // ── Add task ───────────────────────────────────────────────────
 function addTask() {
-  const name=document.getElementById('taskName').value.trim();
-  const desc=document.getElementById('taskDesc').value.trim();
-  const pts=parseInt(document.getElementById('taskPts').value);
-  if(!name){document.getElementById('taskName').focus();return;}
-  if(!pts||pts<1){document.getElementById('taskPts').focus();return;}
+  const name = document.getElementById('taskName').value.trim();
+  const desc = document.getElementById('taskDesc').value.trim();
+  const pts  = parseInt(document.getElementById('taskPts').value);
+  if (!name) { document.getElementById('taskName').focus(); return; }
+  if (!pts || pts < 1) { document.getElementById('taskPts').focus(); return; }
   const requireProof = document.getElementById('requireProof').checked;
-  const visibleToEl = document.getElementById('taskVisibleTo');
-  const visibleTo = !isOwnProfile() ? currentUser.userId : (visibleToEl ? (visibleToEl.value || null) : null);
-  const createdBy = currentUser.userId;
+  const repeating    = document.getElementById('taskRepeating').checked;
+  const visibleToEl  = document.getElementById('taskVisibleTo');
+  const visibleTo    = !isOwnProfile() ? currentUser.userId : (visibleToEl ? (visibleToEl.value || null) : null);
+  const createdBy    = currentUser.userId;
   let toastMsg = '';
-  if(addType==='monthly'){
-    const mk=monthKey(selectedDate);if(!ps().monthly[mk])ps().monthly[mk]=[];
-    ps().monthly[mk].push({id:uid(),name,desc,pts,requireProof,visibleTo,createdBy});
-    toastMsg = '📅 Monthly task added';
-  } else if(addType==='repeat'){
-    ps().repeating.push({id:uid(),name,desc,pts,startDate:selectedDate,requireProof,visibleTo,createdBy});
-    toastMsg = '↻ Repeating task added';
-  } else if(addType==='assigned'){
-    const expiry=document.getElementById('taskExpiry').value;
-    if(!expiry){document.getElementById('taskExpiry').focus();return;}
-    const task={id:uid(),name,desc,pts,assignedOn:selectedDate,expiresOn:expiry,completedOn:null,requireProof,visibleTo,createdBy};
+
+  if (addType === 'monthly') {
+    if (repeating) {
+      // Repeating monthly goal — resets every month
+      ps().repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
+        requireProof, visibleTo, createdBy, isMonthly:true });
+      toastMsg = '🎯 Repeating monthly goal added';
+    } else {
+      const mk = monthKey(selectedDate);
+      if (!ps().monthly[mk]) ps().monthly[mk] = [];
+      ps().monthly[mk].push({ id:uid(), name, desc, pts, requireProof, visibleTo, createdBy });
+      toastMsg = '🎯 Monthly goal added';
+    }
+  } else if (addType === 'assigned') {
+    const expiry = document.getElementById('taskExpiry').value;
+    if (!expiry) { document.getElementById('taskExpiry').focus(); return; }
+    const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
+      completedOn:null, requireProof, visibleTo, createdBy };
     ps(viewingProfile).assigned.push(task);
-    document.getElementById('taskExpiry').value='';
-    notifyAssigned(task,expiry);
-    const targetName = isOwnProfile() ? 'yourself' : (currentUser.partnerNickname || 'partner');
-    toastMsg = `⚑ Task assigned to ${targetName}`;
-    // Immediately save assigned tasks so partner sees them without refreshing
-    clearTimeout(saveTimer); saveTimer = null;
+    document.getElementById('taskExpiry').value = '';
+    notifyAssigned(task, expiry);
+    toastMsg = `⚑ Task assigned to ${currentUser.partnerNickname || 'partner'}`;
+    // Immediately save so partner sees it
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     saveToServer();
   } else {
-    getDayTasks(selectedDate).push({id:uid(),name,desc,pts,done:false,requireProof,visibleTo,createdBy});
-    toastMsg = '✓ Task added';
+    // Daily task
+    if (repeating) {
+      ps().repeating.push({ id:uid(), name, desc, pts, startDate:selectedDate,
+        requireProof, visibleTo, createdBy });
+      toastMsg = '↻ Repeating task added';
+    } else {
+      const expiry = document.getElementById('taskExpiry').value || selectedDate;
+      if (expiry !== selectedDate) {
+        // Has custom expiry — treat as assigned task to self
+        const task = { id:uid(), name, desc, pts, assignedOn:selectedDate, expiresOn:expiry,
+          completedOn:null, requireProof, visibleTo, createdBy };
+        ps().assigned.push(task);
+        toastMsg = `✓ Task added (expires ${expiry})`;
+      } else {
+        getDayTasks(selectedDate).push({ id:uid(), name, desc, pts, done:false,
+          requireProof, visibleTo, createdBy });
+        toastMsg = '✓ Task added';
+      }
+    }
   }
-  document.getElementById('taskName').value='';
-  document.getElementById('taskDesc').value='';
-  document.getElementById('taskPts').value='';
-  document.getElementById('requireProof').checked=false;
-  document.getElementById('proofReviewerRow').style.display='none';
-  scheduleSave();renderTracker();
+
+  // Reset form
+  document.getElementById('taskName').value = '';
+  document.getElementById('taskDesc').value = '';
+  document.getElementById('taskPts').value  = '';
+  document.getElementById('taskExpiry').value = '';
+  document.getElementById('requireProof').checked  = false;
+  document.getElementById('taskRepeating').checked = false;
+  document.getElementById('proofReviewerRow').style.display = 'none';
+  scheduleSave(); renderTracker();
   toast(toastMsg, 'success');
   document.getElementById('taskName').focus();
 }
@@ -2946,7 +3015,12 @@ async function onTaskChecked(newDone) {
 }
 
 async function syncNow() {
-  clearTimeout(saveTimer); saveTimer = null;
+  // Always save any pending changes BEFORE reloading — prevents data loss
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    await saveToServer();
+  }
   await loadFromServer();
   await loadBalances();
   await loadStreak();
